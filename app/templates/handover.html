@@ -1,0 +1,34 @@
+{% extends "base.html" %}{% block title %}Handover{% endblock %}
+{% block pagetitle %}Shift handover{% endblock %}
+{% block pagesub %}Generated {{ today }} — unresolved first, resolved after. WhatsApp text matches the team's style byte-for-byte.{% endblock %}
+{% block body %}
+<div class="hero" style="padding:24px 26px">
+  <span class="eyebrow"><span class="pulse-dot"></span> Grand handover · {{ today }}</span>
+  <h1 style="font-size:clamp(24px,3vw,36px)">Pass the night <span class="grad">without losing a link.</span></h1>
+  <p class="lead">Builder pulls open + waiting + today's closed, plus your free notes. Incoming engineer acks on screen; the text copy goes to WhatsApp.</p>
+</div>
+
+<div class="card"><h2>◉ Waiting, grouped by party (FR-47)</h2><p class="muted" style="margin-top:0">One chase per party clears every link under it.</p>
+{% for party, cs in groups.items() %}<span class="groupchip"><b>{{ party }}</b> · {% for c in cs %}<a href="/cases/{{ c.id }}">#{{ c.id }}</a> {% endfor %}</span>{% else %}<p class="muted">Nothing waiting.</p>{% endfor %}</div>
+
+<div class="grid2">
+<div class="card"><h2>⇄ Builder</h2>
+<form method="post" action="/handover">
+<div class="formrow"><div><label>Shift</label><select name="shift"><option>day</option><option>night</option></select></div>
+<div><label>From engineer</label><input name="from_engineer" value="{{ user.username }}"></div></div><br>
+<label>Free notes</label><textarea name="free_notes" placeholder="Anything the next shift must feel, not just read…"></textarea><br>
+<label style="display:flex; gap:8px; align-items:center"><input type="checkbox" name="show_wait_age" style="width:auto"> append wait-age (off = exact team style)</label><br>
+<button type="submit">Generate handover</button></form></div>
+<div class="card"><h2>⬆ Import WhatsApp text</h2>
+<p class="muted" style="margin-top:0">Paste today's Daily Handover — ELNOC parses every entry, matches links, diffs updates, and <b>questions anything unchanged 12h+</b> before applying.</p>
+<p><a class="btn violet" href="/handover/import">Import handover text →</a></p></div>
+<div class="card"><h2>▤ Right now</h2>
+<table><tr><th>Case</th><th>Link</th><th>State</th><th>Waiting on</th></tr>
+{% for c in cases %}<tr><td><a href="/cases/{{ c.id }}">#{{ c.id }}</a></td><td><b>{{ c._link_name }}</b></td><td><span class="pill info">{{ c.link_state }}</span></td><td>{{ c.waiting_on or '—' }}</td></tr>
+{% else %}<tr><td colspan="4" class="muted">All clear.</td></tr>{% endfor %}</table></div>
+</div>
+
+<div class="card"><h2>◐ Recent handovers</h2>
+{% for h in handovers %}<p><a class="mono" href="/handover/{{ h.id }}">#{{ h.id }} · {{ h.shift_date }} · {{ h.shift }}</a> — from <b>{{ h.from_engineer }}</b> → {% if h.acknowledged_by %}<span class="pill ok">acked by {{ h.acknowledged_by }}</span>{% else %}<span class="pill stale">unacknowledged</span>{% endif %}</p>
+{% else %}<p class="muted">No handovers yet — generate the first one above.</p>{% endfor %}</div>
+{% endblock %}

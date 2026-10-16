@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% block title %}Import handover{% endblock %}
+{% block pagetitle %}Import WhatsApp handover{% endblock %}
+{% block pagesub %}Paste the Daily Handover — parse, match, diff, question, apply.{% endblock %}
+{% block body %}
+{% if not preview %}
+<div class="card"><h2>⬆ Paste today's text</h2>
+<form method="post" action="/handover/import">
+<div class="formrow"><div><label>Shift date (DD/MM/YYYY)</label><input name="shift_date" value="{{ today }}"></div>
+<div><label>&nbsp;</label><div class="muted" style="font-size:12.5px">The parser tolerates missing UPDATE: prefixes, odd spacing, typos, both affected-links styles and resolved <span class="mono">| notes</span>.</div></div></div><br>
+<label>Handover text</label>
+<textarea name="raw_text" style="min-height:260px" placeholder="TICKET UPDATES – …"></textarea><br>
+<button type="submit">Parse & match →</button></form></div>
+{% else %}
+<div class="card"><h2>◉ Preview — import #{{ preview.import.id }} ({{ preview.import.shift_date }})</h2>
+<p class="muted" style="margin-top:0">{{ preview.parsed.unresolved|length }} unresolved · {{ preview.parsed.resolved|length }} resolved · {{ preview.parsed.warnings|length }} warnings. Untick to skip; tick “create link” for unknown names. Nothing is written until you Apply.</p>
+{% for w in preview.parsed.warnings %}<p class="muted" style="font-size:12.5px">⚠ {{ w }}</p>{% endfor %}
+<form method="post" action="/handover/import/{{ preview.import.id }}/apply">
+<table><tr><th></th><th>Entry</th><th>Match</th><th>Update diff</th></tr>
+{% for r in preview.rows %}<tr>
+<td><input type="checkbox" name="skip_{{ r.idx }}" style="width:auto" title="tick to skip"></td>
+<td><b>{{ r.entry.link }}</b> <span class="pill info">{{ r.entry.section }}</span><br>
+<span class="muted" style="font-size:12.5px">STATUS: {{ r.entry.status_raw or '—' }}</span><br>
+<span style="font-size:13px">{{ r.entry["update"][:220] or '(no update given)' }}</span><br>
+{% if r.entry.affected %}<span class="muted" style="font-size:12px">affected: {{ r.entry.affected|join(', ') }}</span><br>{% endif %}
+{% if r.party %}<span class="pill major">{{ r.party }}</span>{% endif %}</td>
+<td>{% if r.case %}<a href="/cases/{{ r.case.id }}">case #{{ r.case.id }}</a><br><span class="muted" style="font-size:12px">{{ r.link.name }} ({{ r.score }})</span>
+{% elif r.link %}<span class="muted" style="font-size:12.5px">{{ r.link.name }} — no open case (stub will open)</span>
+{% else %}<span class="pill critical">NEW LINK</span><br>
+<label style="display:flex; gap:6px; align-items:center; font-size:12.5px"><input type="checkbox" name="newlink_{{ r.idx }}" checked style="width:auto"> create link + stub</label>{% endif %}</td>
+<td>{% if r.flag %}<span class="pill stale">{{ r.flag }}</span>
+{% elif r.same %}<span class="pill info">same as current ({{ r.unchanged_hours }}h)</span>
+{% elif r.case %}<span class="pill ok">fresh update</span>
+{% else %}<span class="muted">—</span>{% endif %}</td>
+</tr>{% endfor %}</table>
+<br><button class="btn ember" type="submit">Apply to cases</button>
+<a class="btn ghost" href="/handover/import">Discard</a></form></div>
+{% endif %}
+
+<div class="card"><h2>◐ Recent imports</h2>
+{% for i in recent %}<p><a class="mono" href="/handover/import/done/{{ i.id }}">#{{ i.id }} · {{ i.shift_date }}</a> by {{ i.imported_by }} — {% if i.applied %}<span class="pill ok">applied</span>{% else %}<span class="pill major">preview only</span>{% endif %}</p>
+{% else %}<p class="muted">No imports yet.</p>{% endfor %}</div>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block title %}Weekly report{% endblock %}
+{% block pagetitle %}Weekly report{% endblock %}
+{% block pagesub %}Repeat incidents, waiting age, MTTR, wrong-team escalations — the pilot scoreboard.{% endblock %}
+{% block body %}
+<div class="stats">
+  <div class="stat"><div class="k">Cases</div><div class="v">{{ rep.total }}</div><div class="s">in corpus</div></div>
+  <div class="stat {% if rep.mttr_min and rep.mttr_min > 240 %}bad{% else %}good{% endif %}"><div class="k">MTTR</div><div class="v">{{ rep.mttr_min or '—' }}</div><div class="s">minutes · target ≤ 240</div></div>
+  <div class="stat"><div class="k">Complete cards</div><div class="v" style="font-size:26px">{{ rep.complete_card }}</div><div class="s">root cause + fix + first-check</div></div>
+  <div class="stat warn"><div class="k">Wrong-team</div><div class="v">{{ rep.wrong_team_case_ids|length }}</div><div class="s">{{ rep.wrong_team_case_ids|join(', ') or 'none — first escalation lands' }}</div></div>
+</div>
+<div class="grid2">
+<div class="card"><h2>◐ Repeats per link</h2>{% for r in rep.repeats %}<p><b>{{ r.link }}</b> <span class="pill {% if loop.index <= 2 %}critical{% else %}info{% endif %}">{{ r.count }}×</span></p>{% else %}<p class="muted">No repeats.</p>{% endfor %}
+<p class="muted" style="font-size:13px">Open by level: {% for lv, n in rep.by_level.items() %}<span class="pill info">{{ lv }} {{ n }}</span> {% endfor %}</p>
+<p><a class="btn sm ghost" href="/report/weekly.csv">⬇ CSV</a></p></div>
+<div class="card"><h2>◉ Waiting age</h2>{% for w in rep.waiting %}<p><a href="/cases/{{ w.id }}">#{{ w.id }}</a> <b>{{ w.link }}</b> waits on <b>{{ w.waiting_on }}</b> — <span class="mono">{{ w.age_min }}m</span></p>{% else %}<p class="muted">Nobody waiting.</p>{% endfor %}</div>
+</div>
+<div class="card"><h2>◉ Questioned updates (same UPDATE 12h+ / repeat 48h+)</h2>
+{% for q in rep.questioned %}<p><a href="/cases/{{ q.id }}">#{{ q.id }}</a> <b>{{ q.link }}</b> — <span class="pill stale">{{ q.flag }}</span></p>{% else %}<p class="muted">Every update is moving. Good shift.</p>{% endfor %}</div>
+{% endblock %}

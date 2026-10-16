@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+data/
+backups/
+evidence/
+.pytest_cache/
+.venv/
+.git/
+tools/cloudflared.exe
+ELNOC Solution Design & Requirements.md

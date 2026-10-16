@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080d1a">
+<meta name="description" content="ELNOC — Engage and Learn NOC: cases, escalation and handover.">
+<title>ELNOC · {% block title %}Ops{% endblock %}</title>
+<link rel="icon" type="image/png" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/logo.png">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer></script>
+</head><body>
+<div class="shell">
+<aside class="rail">
+  <a href="/dashboard" style="text-decoration:none; color:inherit"><div class="brand"><img class="brand-logo" src="/logo.png" alt="ELNOC logo">
+    <div><div class="brand-name">ELNOC</div><div class="brand-sub">Engage and Learn NOC</div></div></div></a>
+  <div class="nav-label">Operate</div>
+  <a class="nav-item" href="/dashboard"><span class="nav-ico">◉</span>Command deck</a>
+  <a class="nav-item" href="/quicklog"><span class="nav-ico">⚡</span>Quick Log <span class="muted mono" style="margin-left:auto;font-size:11px">⌃⇧L</span></a>
+  <a class="nav-item" href="/cases"><span class="nav-ico">▤</span>Cases</a>
+  <a class="nav-item" href="/handover"><span class="nav-ico">⇄</span>Handover</a>
+  <div class="nav-label">Knowledge</div>
+  <a class="nav-item" href="/playbooks"><span class="nav-ico">✎</span>Playbooks</a>
+  <a class="nav-item" href="/ask"><span class="nav-ico">✦</span>Ask ELNOC</a>
+  <a class="nav-item" href="/report/weekly"><span class="nav-ico">◐</span>Weekly report</a>
+  <div class="nav-label">System</div>
+  <a class="nav-item" href="/admin"><span class="nav-ico">⚙</span>Registry &amp; admin</a>
+  <a class="nav-item" href="/collector-status"><span class="nav-ico">〜</span>Collectors</a>
+  <div class="rail-foot">
+    {% if user %}
+    <div class="user-chip"><div class="avatar">{{ user.username[:1]|upper }}</div>
+      <div><b>{{ user.username }}</b><br><span class="muted" style="font-size:12px">{{ user.role }}</span></div>
+      <form method="post" action="/logout" style="margin:0 0 0 auto"><button class="btn sm ghost" type="submit" title="Sign out cleanly">⎋</button></form></div>
+    {% endif %}
+    <div class="muted" style="font-size:11.5px">Phoenix stays official · ELNOC is the working twin.<br>No secrets in free text — ever.</div>
+  </div>
+</aside>
+<div class="main-col">
+  <div class="topbar">
+    <div><div class="page-title">{% block pagetitle %}ELNOC{% endblock %}</div>
+    <div class="page-sub">{% block pagesub %}One console for alerts, cases and handover.{% endblock %}</div></div>
+    <div class="topbar-right">
+      <span class="hb"><i></i>PRTG · Zabbix · SmartOLT live</span>
+      <span class="clock" id="wat-clock">-- WAT</span>
+      <a class="btn sm" href="/quicklog">＋ Log in 30s</a>
+    </div>
+  </div>
+  <main>{% block body %}{% endblock %}</main>
+</div>
+</div>
+<div id="toast"></div>
+</body></html>

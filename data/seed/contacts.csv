@@ -1,0 +1,7 @@
+name,role,team,phone,email,whatsapp_number,preferred_channels,availability_hours
+Mr Adekunle,Escalation,Oregun,+2348000000001,adekunle@company.local,+2348000000001,"email,whatsapp",08:00-20:00
+Oregun NOC,Team,Oregun,+2348000000002,oregun@company.local,+2348000000002,"email,whatsapp",24/7
+Yomi,Field,Field,+2348000000003,yomi@company.local,+2348000000003,"email,whatsapp",08:00-18:00
+Prec Pearl NOC,Team,Prec Pearl,+2348000000004,precpearl@company.local,+2348000000004,"email,whatsapp",24/7
+Levene Lcon,Partner,Levene,+2348000000005,levene@company.local,+2348000000005,"email,whatsapp",08:00-18:00
+Line Manager,Manager,NOC,+2348000000006,manager@company.local,+2348000000006,"email,whatsapp",24/7

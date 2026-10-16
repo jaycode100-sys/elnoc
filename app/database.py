@@ -1,0 +1,84 @@
+"""SQLite + SQLAlchemy setup: WAL mode, timeout, FTS5 table (NFR-08, NFR-15)."""
+from __future__ import annotations
+import os
+from pathlib import Path
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.orm import sessionmaker, DeclarativeBase
+
+from .config import settings
+
+class Base(DeclarativeBase):
+    pass
+
+def _db_url() -> str:
+    # Supabase/any Postgres wins when set (NFR-15 scale path); else local SQLite.
+    pg = os.getenv("DATABASE_URL", "").strip()
+    if pg:
+        return pg
+    p = Path(settings.DB_PATH)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return f"sqlite:///{p}"
+
+def is_sqlite(url: str) -> bool:
+    return url.startswith("sqlite")
+
+def make_engine(url: str):
+    """Engine factory (testable): SQLite gets WAL/timeout/pragmas; Postgres
+    gets a plain pooled engine — no SQLite-isms leak across."""
+    if is_sqlite(url):
+        eng = create_engine(
+            url,
+            connect_args={"timeout": 30, "check_same_thread": False},
+            future=True,
+        )
+
+        @event.listens_for(eng, "connect")
+        def _set_sqlite_pragmas(dbapi_conn, conn_record):
+            cur = dbapi_conn.cursor()
+            cur.execute("PRAGMA journal_mode=WAL;")
+            cur.execute("PRAGMA synchronous=NORMAL;")
+            cur.execute("PRAGMA busy_timeout=30000;")
+            cur.execute("PRAGMA foreign_keys=ON;")
+            cur.close()
+
+        return eng
+    return create_engine(url, pool_pre_ping=True, future=True)
+
+
+engine = make_engine(_db_url())
+
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
+FTS_SQL = """
+CREATE VIRTUAL TABLE IF NOT EXISTS case_fts USING fts5(
+  case_id UNINDEXED, symptom, fix, root_cause_detail, customer_name, link_name
+);
+"""
+
+def init_db() -> None:
+    from . import models  # noqa: F401  (register tables)
+    Base.metadata.create_all(bind=engine)
+    if is_sqlite(engine.url.render_as_string(hide_password=True)):
+        with engine.begin() as conn:
+            conn.execute(text(FTS_SQL))
+    # else: Postgres uses ILIKE fallback in similar.py (no FTS5 there)
+    ensure_columns()
+
+def ensure_columns() -> None:
+    """Lightweight migrations for DBs created before a field existed
+    (create_all never alters existing tables). Additive only, idempotent.
+    SQLite-only for now; Postgres gets Alembic-style scripts at migration."""
+    if not is_sqlite(engine.url.render_as_string(hide_password=True)):
+        return
+    with engine.begin() as conn:
+        cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(case_tbl)")]
+        if "escalation_level" not in cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE case_tbl ADD COLUMN escalation_level VARCHAR(20) DEFAULT ''")
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

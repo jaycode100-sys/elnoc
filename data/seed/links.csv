@@ -1,0 +1,6 @@
+name,customer,circuit_id,a_end,b_end,medium,responsible_team,aliases,tier,sources,primary_contact
+LTV8 Ikeja-RC,LTV8,LTV8-001,Ikeja,RC,fibre,NOC,ltv8 ikeja rc,core,PRTG,ZABBIX,Line Manager
+LTV8 Backup,LTV8,LTV8-002,Ikeja,Backup,radio,NOC,ltv8 backup,access,PRTG,,Line Manager
+Prec Pearl Main,Prec Pearl,PP-001,HQ,Branch,fibre,NOC,prec pearl,distribution,PRTG,,Prec Pearl NOC
+Levene Lcon Main,Levene,LV-001,Lagos,Lcon,fibre,NOC,levene lcon,access,SMARTOLT,PRTG,Levene Lcon
+Demo Bank HQ,Demo Bank,DB-001,Marina,HQ,fibre,NOC,demo bank,distribution,PRTG,ZABBIX,Line Manager

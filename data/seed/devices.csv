@@ -1,0 +1,5 @@
+hostname,ip,site,latitude,longitude,tier,link,monitored_in
+ltv8-ikeja-rc,192.0.2.10,Ikeja,6.5244,3.3792,core,LTV8 Ikeja-RC,PRTG
+precpearl-hq,192.0.2.20,HQ,6.5244,3.3792,distribution,Prec Pearl Main,PRTG
+levene-lcon,192.0.2.30,Lagos,6.5244,3.3792,access,Levene Lcon Main,"SMARTOLT,PRTG"
+demobank-hq,192.0.2.40,Marina,6.5244,3.3792,distribution,Demo Bank HQ,"PRTG,ZABBIX"

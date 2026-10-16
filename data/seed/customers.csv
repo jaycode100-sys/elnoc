@@ -1,0 +1,5 @@
+name,aliases,tier,notes,sources
+LTV8,ltv8 television,standard,,PRTG,ZABBIX
+Prec Pearl,precpearl,standard,,PRTG
+Levene,levene lcon,standard,,SMARTOLT,PRTG
+Demo Bank,demo bank,standard,,PRTG,ZABBIX

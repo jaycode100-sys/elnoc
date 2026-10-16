@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block title %}Cases{% endblock %}
+{% block pagetitle %}Cases{% endblock %}
+{% block pagesub %}Shift memory. Same link first, then customer, then full-text — the fix you need is usually one click away.{% endblock %}
+{% block body %}
+<div class="card" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+  <b>Filter</b>
+  <a class="btn sm {% if not status %}violet{% else %}ghost{% endif %}" href="/cases">All</a>
+  <a class="btn sm {% if status=='open' %}violet{% else %}ghost{% endif %}" href="/cases?status=open">● open</a>
+  <a class="btn sm {% if status=='waiting_other_team' %}violet{% else %}ghost{% endif %}" href="/cases?status=waiting_other_team">◉ waiting</a>
+  <a class="btn sm {% if status=='resolved' %}violet{% else %}ghost{% endif %}" href="/cases?status=resolved">✓ resolved</a>
+  <span style="margin-left:auto"></span>
+  <a class="btn sm ghost" href="/export/cases.csv">⬇ CSV export (FR-63)</a>
+</div>
+<div class="panel"><table><tr><th>Case</th><th>Link &amp; symptom</th><th>Status</th><th>Sev</th><th>Age</th></tr>
+{% for c in cases %}<tr class="{% if c._stale %}stale{% endif %}">
+<td><a class="mono" href="/cases/{{ c.id }}">#{{ c.id }}</a></td>
+<td><b>{{ c._link_name }}</b> <span class="muted">{{ c._customer_name }}</span><br><span class="muted">{{ (c.symptom or '')[:130] }}</span></td>
+<td><span class="pill {% if c._stale %}stale{% elif c.status=='resolved' %}ok{% else %}major{% endif %}">{{ c.status }}</span><br><span class="muted" style="font-size:12px">{{ c.link_state }}{% if c.waiting_on %} · {{ c.waiting_on }}{% endif %}</span></td>
+<td><span class="badge {{ c.severity }}">{{ c.severity }}</span></td><td class="mono">{{ c._age }}m{% if c._stale %}<br><span class="pill stale">STALE</span>{% endif %}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">No cases under this filter.</td></tr>{% endfor %}</table></div>
+{% endblock %}

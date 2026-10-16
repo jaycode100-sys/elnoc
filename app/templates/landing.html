@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080d1a">
+<title>ELNOC — Engage and Learn NOC</title>
+<link rel="icon" type="image/png" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/logo.png">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer></script>
+<style>
+  .land-nav{position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:12px; padding:14px 28px;
+    background:rgba(6,10,22,.72); backdrop-filter:blur(18px); border-bottom:1px solid var(--line)}
+  .land-wrap{max-width:1180px; margin:0 auto; padding:0 28px 80px; position:relative; z-index:1}
+  .land-hero{padding:84px 0 30px; text-align:left}
+  .land-hero h1{font-size:clamp(40px,6.4vw,84px); line-height:.98; letter-spacing:-3px; margin:18px 0 14px; font-weight:800}
+  .land-hero h1 .grad{background:linear-gradient(92deg,var(--cyan),var(--violet) 55%,var(--ember)); -webkit-background-clip:text; background-clip:text; color:transparent}
+  .land-hero p.lead{font-size:19px; color:#b9c3dd; max-width:660px}
+  .pillars{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin:34px 0}
+  .pillar{border-radius:var(--r-md); padding:24px; background:var(--glass); border:1px solid var(--line); backdrop-filter:blur(14px)}
+  .pillar .n{font-family:var(--mono); color:var(--cyan); font-size:13px; letter-spacing:2px}
+  .pillar h3{margin:8px 0 6px; font-size:20px; letter-spacing:-.4px}
+  .pillar p{color:var(--muted); font-size:14.5px; margin:0}
+  .flow{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:10px 0 34px}
+  .flow div{padding:16px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid var(--line); font-size:14px}
+  .flow b{display:block; margin-bottom:4px}
+  .kpis{display:flex; gap:12px; flex-wrap:wrap; margin-bottom:40px}
+  .kpi{flex:1 1 150px; text-align:center; padding:18px; border-radius:14px; background:rgba(255,255,255,.03); border:1px solid var(--line)}
+  .kpi b{font-size:28px; display:block; letter-spacing:-1px}
+  .kpi span{font-size:12.5px; color:var(--muted)}
+  @media(max-width:900px){.pillars,.flow{grid-template-columns:1fr}}
+</style>
+</head><body>
+<div class="land-nav">
+  <div class="brand" style="padding:0"><a href="/" style="text-decoration:none; color:inherit; display:flex; align-items:center; gap:12px"><img class="brand-logo" src="/logo.png" alt="ELNOC logo"></a>
+    <div><div class="brand-name" style="font-size:17px">ELNOC</div></div></div>
+  <span class="muted" style="font-size:12.5px">Engage and Learn NOC · on-prem</span>
+  <span style="margin-left:auto; display:flex; gap:10px">
+    {% if user %}<a class="btn sm" href="/dashboard">Open command deck →</a>
+    <form method="post" action="/logout" style="margin:0"><button class="btn sm ghost" type="submit">Log out</button></form>
+    {% else %}<a class="btn sm ghost" href="/login">Log in</a><a class="btn sm" href="/signup">Create account</a>{% endif %}
+  </span>
+</div>
+<div class="land-wrap">
+  {% if logged_out %}<div class="card" style="margin-top:18px; border-color:var(--ok)">✓ <b>Signed out cleanly.</b> <span class="muted">Session cookie cleared — see you next shift.</span></div>{% endif %}
+  <div class="land-hero">
+    <span class="eyebrow"><span class="pulse-dot"></span> NOC · PRTG + Zabbix + SmartOLT + Phoenix</span>
+    <h1>Log it in 30 seconds.<br><span class="grad">Never solve it twice.</span></h1>
+    <p class="lead">ELNOC is one company-controlled console where monitoring alerts become <b>cases</b>, the right contact is paged <b>automatically</b>, and every fix teaches the next shift. Cloud Phoenix stays the official ticket — ELNOC is the working twin.</p>
+    <div class="hero-cta" style="margin-top:20px">
+      {% if user %}<a class="btn" href="/dashboard">Open command deck →</a><a class="btn ghost" href="/quicklog">⚡ Quick Log</a>
+      {% else %}<a class="btn" href="/signup">Create account →</a><a class="btn ghost" href="/login">Log in</a>{% endif %}
+    </div>
+    <p class="muted mono" style="font-size:12.5px; margin-top:12px">{{ stats.open }} open · {{ stats.cases }} cases in memory · hotkey <kbd>Ctrl+Shift+L</kbd></p>
+  </div>
+
+  <div class="pillars">
+    <div class="pillar"><div class="n">G1 · SPEED</div><h3>30-second logging</h3><p>Hotkey, shorthand, Enter, one line, save. Device pre-filled from the window title. The corpus already holds LTV8's 14-hour lesson.</p></div>
+    <div class="pillar"><div class="n">G4 · MEMORY</div><h3>Similar cases first</h3><p>Same link, then customer, then full-text. Close-outs demand root cause + fix + first-check, so history compounds.</p></div>
+    <div class="pillar"><div class="n">G5 · PAGING</div><h3>Escalation that chases</h3><p>Critical pages email + WhatsApp instantly; unacked steps escalate every 15 min. One-tap ack stops the chain.</p></div>
+  </div>
+
+  <div class="card"><h2>◉ How a night flows</h2>
+    <div class="flow">
+      <div><b>1 · Detect</b><span class="muted">PRTG / Zabbix / SmartOLT / mailbox poll every 5 min; stable fingerprints, zero duplicates.</span></div>
+      <div><b>2 · Case</b><span class="muted">Events correlate onto one case — ten down sensors, one message, not ten.</span></div>
+      <div><b>3 · Escalate</b><span class="muted">Primary + steps + one optional watcher. Recovery suggests close; a human closes.</span></div>
+      <div><b>4 · Hand over</b><span class="muted">WhatsApp text in the team's exact style, acked on screen, CSV for the sheet.</span></div>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><b>&lt;1h</b><span>MTTA target · ack time</span></div>
+    <div class="kpi"><b>4h</b><span>MTTR target · resolve time</span></div>
+    <div class="kpi"><b>97%</b><span>link uptime target</span></div>
+    <div class="kpi"><b>30s</b><span>log-an-event target</span></div>
+  </div>
+
+  <div class="card"><h2>◈ Built for the NOC's threat model</h2>
+    <p class="muted">On-prem or approved tenancy · read-only monitoring accounts · secret guard blocks passwords in free text · versioned edits, no hard deletes · hotkey client that never logs keys or screenshots · AI layer (optional) minimises data and needs approval for every action.</p>
+    <div class="hero-cta">{% if user %}<a class="btn violet" href="/handover">⇄ Build tonight's handover</a>{% else %}<a class="btn violet" href="/signup">Join the NOC →</a>{% endif %}<a class="btn ghost" href="/login">Engineer login</a></div>
+  </div>
+  <p class="faint" style="font-size:12px; text-align:center">ELNOC · shift memory for fibre teams · Phoenix remains the official record</p>
+</div>
+<div id="toast"></div>
+</body></html>

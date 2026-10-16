@@ -1,0 +1,71 @@
+{% extends "base.html" %}{% block title %}Case {{ case.id }}{% endblock %}
+{% block pagetitle %}Case #{{ case.id }} · {{ link_name }}{% endblock %}
+{% block pagesub %}{{ customer_name }} · <code>{{ case.device }}</code> · opened {{ case.opened_at }} by {{ case.engineer }}{% endblock %}
+{% block body %}
+{% if stale %}<div class="card" style="border-color:var(--danger); background:linear-gradient(90deg, rgba(255,84,112,.18), transparent)">◉ <b>STALE WAIT</b> — older than the rule's wait. Re-verify locally or escalate upward. (FR-24)</div>{% endif %}
+{% if upd.flag %}<div class="card" style="border-color:var(--warn); background:linear-gradient(90deg, rgba(255,176,32,.14), transparent)">◉ <b>{{ upd.flag }}</b> — the UPDATE hasn't changed in {{ upd.hours }}h across {{ upd.runs }} entr{{ 'ies' if upd.runs != 1 else 'y' }}. Add a fresh finding or chase the waiting party.</div>{% endif %}
+{% if promo %}<div class="card" style="border-color:var(--gold)">✎ {{ promo }} <a href="/playbooks">Open playbooks →</a></div>{% endif %}
+
+<div class="hero" style="padding:24px 26px">
+  <span class="eyebrow"><span class="pulse-dot"></span> {{ case.severity|upper }} · {{ case.status }} · link {{ case.link_state|upper }}</span>
+  <h1 style="font-size:clamp(24px,3vw,36px)">{{ link_name }}</h1>
+  <p class="lead">{{ case.symptom }}</p>
+  <div class="hero-cta">
+    <span class="pill {% if case.status=='resolved' %}ok{% else %}critical{% endif %}">{{ case.status }}</span>
+    <span class="pill info">link: {{ case.link_state }}</span>
+    {% if case.waiting_on %}<span class="pill major">waiting: {{ case.waiting_on }}</span>{% endif %}
+    {% if case.escalation_level %}<span class="pill info" title="{{ levels[case.escalation_level] }}">{{ case.escalation_level }}</span>{% endif %}
+    <span class="pill info">Phoenix: {{ case.phoenix_ticket_no or '—' }}</span>
+    <span style="flex:1"></span>
+    <button class="btn sm" onclick="elnocCopy('phx')">⧉ Copy for Phoenix</button>
+  </div>
+</div>
+<pre class="wa" id="phx" style="display:none">{{ customer_name }} {{ link_name }} {{ case.symptom }}</pre>
+
+<div class="grid2">
+<div>
+<div class="card"><h2>◉ Timeline</h2>
+<div class="timeline">
+{% for e in events %}<div class="tl-item k-{{ e.kind }}"><div class="tl-meta">{{ e.at }} · [{{ e.kind }}] · {{ e.engineer }}</div><div>{{ e.text }}</div></div>{% endfor %}
+</div>
+<form method="post" action="/cases/{{ case.id }}/notes" style="display:flex; gap:8px; margin-top:12px">
+<input name="text" placeholder="Add note, then Enter…" autocomplete="off" style="flex:1"><button type="submit">Add</button></form>
+<p class="muted" style="font-size:12.5px">Tip: paste trace output or screenshots via Evidence below — never credentials. The secret guard blocks them.</p></div>
+
+<div class="card"><h2>◐ Status &amp; waiting</h2>
+<form method="post" action="/cases/{{ case.id }}/status">
+<div class="formrow">
+<div><label>Workflow status</label><select name="status"><option {% if case.status=='open' %}selected{% endif %}>open</option><option {% if case.status=='escalated' %}selected{% endif %}>escalated</option><option {% if case.status=='waiting_other_team' %}selected{% endif %}>waiting_other_team</option><option>resolved</option></select></div>
+<div><label>Link state (drives handover)</label><select name="link_state"><option value="">— keep —</option><option>down</option><option>degraded</option><option>up</option></select></div>
+<div><label>Escalation level</label><select name="escalation_level"><option value="">— unset —</option>{% for lv, meaning in levels.items() %}<option value="{{ lv }}" {% if case.escalation_level==lv %}selected{% endif %} title="{{ meaning }}">{{ lv }}</option>{% endfor %}</select></div></div><br>
+<label>Waiting on (team / person — shows after “FOLLOWING UP WITH”)</label><input name="waiting_on" placeholder="OREGUN TEAM" value="{{ case.waiting_on }}">
+<br><button type="submit">Update case</button></form></div>
+
+<div class="card"><h2>✓ Close-out</h2><p class="muted" style="margin-top:0">All three required (FR-22) — this is what teaches the next shift.</p>
+<form method="post" action="/cases/{{ case.id }}/close">
+<label>Root-cause category</label><select name="root_cause_category">{% for c in categories %}<option {% if case.root_cause_category==c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select><br><br>
+<label>Root-cause detail</label><textarea name="root_cause_detail" placeholder="e.g. far-end SFP dark, RSL −29 dBm">{{ case.root_cause_detail }}</textarea><br><br>
+<label>Fix</label><textarea name="fix" placeholder="What restored it?">{{ case.fix }}</textarea><br><br>
+<label>First thing to check next time</label><textarea name="first_thing_to_check_next_time" placeholder="e.g. RSL transceiver detail first">{{ case.first_thing_to_check_next_time }}</textarea><br><br>
+<button class="btn ember" type="submit">Close case</button></form></div>
+</div>
+
+<div>
+<div class="card"><h2>◈ Similar cases</h2><p class="muted" style="margin-top:0">Same link → same customer → full-text. The LTV8 answer was in here all along.</p>
+{% for s in sims %}<div class="result" onclick="location.href='/cases/{{ s.id }}'"><span class="rank">#{{ s.id }}</span>
+<div><b>{{ s._link_name }}</b><br><span class="meta">{{ (s.symptom or '')[:150] }}</span><br><span class="meta">fix: {{ (s.fix or '—')[:150] }}</span></div></div>
+{% else %}<p class="muted">No similar cases yet — yours will be the first lesson.</p>{% endfor %}</div>
+
+<div class="card"><h2>✎ Suggested playbooks</h2>
+{% for p in suggested %}<p><b>{{ p.title }}</b><br><span class="muted">{{ (p.steps or '')[:200] }}</span></p>{% else %}<p class="muted">None match this category yet.</p>{% endfor %}</div>
+
+<div class="card"><h2>◎ Watcher &amp; affected links</h2>
+<p class="muted" style="margin-top:0">One optional watcher per case (FR-27) — logged with who added them. Affected: <b>{{ affected|join(', ') or '—' }}</b></p>
+<form method="post" action="/cases/{{ case.id }}/watcher" style="display:flex; gap:8px"><input name="contact_id" placeholder="Contact ID" style="flex:1"><button class="btn sm violet" type="submit">Add watcher</button></form></div>
+
+<div class="card"><h2>▣ Evidence</h2>
+{% for a in atts %}<p>📎 <b>{{ a.filename }}</b> <span class="muted mono">{{ a.sha256[:12] }} · {{ a.uploaded_by }}</span></p>{% else %}<p class="muted">No attachments — OTDR traces and screenshots live here, not in chat.</p>{% endfor %}
+<form method="post" action="/cases/{{ case.id }}/attachments" enctype="multipart/form-data" style="display:flex; gap:8px; flex-wrap:wrap"><input type="file" name="file" style="flex:1"><input name="note" placeholder="note" style="flex:1"><button type="submit">Attach</button></form></div>
+</div>
+</div>
+{% endblock %}

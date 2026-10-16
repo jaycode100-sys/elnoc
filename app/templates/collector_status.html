@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}Collectors{% endblock %}
+{% block pagetitle %}Collectors & heartbeat{% endblock %}
+{% block pagesub %}Monitoring the monitor (NFR-07). Stale or broken here means the manual paging fallback stays on.{% endblock %}
+{% block body %}
+{% if stale %}<div class="card" style="border-color:var(--danger)">◉ <b>STALE / BROKEN:</b> {{ stale|join(', ') }} — scheduler hasn't landed in 15 min or last run failed.</div>
+{% else %}<div class="card" style="border-color:var(--ok)">◉ <b>All collectors fresh.</b> PRTG · Zabbix · SmartOLT · mailbox each ran clean within the window.</div>{% endif %}
+<div class="grid2">
+<div class="card"><h2>〜 Sources</h2>
+<table><tr><th>Source</th><th>Last run</th><th>OK</th><th>Error</th></tr>
+{% for r in runs %}<tr><td><span class="pill {% if r.last_ok %}ok{% else %}critical{% endif %}">{{ r.source }}</span></td><td class="mono" style="font-size:12.5px">{{ r.last_run_at }}</td><td>{{ r.last_ok }}</td><td class="muted" style="font-size:12.5px">{{ (r.last_error or '')[:220] }}</td></tr>
+{% else %}<tr><td colspan="4" class="muted">No runs yet — scheduler fires collectors every 5 min: <code>python tools/run_collectors.py</code>.</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>⚡ Trigger & webhooks</h2>
+<p class="muted">Manual dry trigger:</p><pre class="wa">curl -X POST /ingest/prtg -H "Content-Type: application/json" -d '{"dry_run": true}'</pre>
+<p class="muted">Push later, to cut detection delay: PRTG <b>HTTP Action</b> → <code>POST /ingest/prtg</code>; Zabbix <b>webhook media</b> → <code>POST /ingest/zabbix</code>. Polling stays the pilot path.</p></div>
+</div>
+{% endblock %}

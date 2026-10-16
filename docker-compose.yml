@@ -1,0 +1,35 @@
+# ELNOC production stack: app + named Cloudflare Tunnel sidecar.
+# Prereqs: HOSTING.md Tier 1 (tunnel created, CLOUDFLARE_TUNNEL_TOKEN issued,
+# public hostname -> http://elnoc:8000 configured in Zero Trust dashboard).
+#
+#   CLOUDFLARE_TUNNEL_TOKEN=xxxx docker compose up -d --build
+#
+# DATABASE_URL empty = local SQLite in ./data (volume-persisted).
+# DATABASE_URL set to Supabase pooler = Tier 2 Postgres (see HOSTING.md).
+services:
+  elnoc:
+    build: .
+    env_file:
+      - .env
+    environment:
+      ELNOC_DB_PATH: /srv/elnoc/data/elnoc.db
+      ELNOC_BACKUP_DIR: /srv/elnoc/backups
+    volumes:
+      - ./data:/srv/elnoc/data
+      - ./evidence:/srv/elnoc/evidence
+      - ./backups:/srv/elnoc/backups
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=8)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      elnoc:
+        condition: service_healthy
+    restart: unless-stopped

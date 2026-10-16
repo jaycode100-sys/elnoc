@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+data/*.db*
+data/*.wal
+data/*.shm
+data/collectors.lock
+backups/
+evidence/*
+!evidence/.gitkeep
+.pytest_cache/
+.venv/
+tools/cloudflared.exe
+.cloudflared/
+*-credentials.json
+tunnel-token.txt

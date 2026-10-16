@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block title %}Registry & admin{% endblock %}
+{% block pagetitle %}Registry & admin{% endblock %}
+{% block pagesub %}Customers, links, contacts, escalation steps, maintenance windows, users. Keep this true and the paging stays true.{% endblock %}
+{% block body %}
+<div class="grid2">
+<div class="card"><h2>◎ Contacts ({{ contacts|length }})</h2>
+<table><tr><th>ID</th><th>Name → team</th><th>Reach</th></tr>
+{% for c in contacts %}<tr><td class="mono">{{ c.id }}</td><td><b>{{ c.name }}</b><br><span class="muted">{{ c.role }} · {{ c.team }}</span></td><td class="mono" style="font-size:12.5px">{{ c.whatsapp_number }}<br><span class="muted">{{ c.email }}</span></td></tr>{% endfor %}</table>
+<form method="post" action="/admin/contacts" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px">
+<input name="name" placeholder="Name" style="flex:1"><input name="team" placeholder="Team" style="flex:1"><input name="phone" placeholder="Phone" style="flex:1"><input name="email" placeholder="Email" style="flex:1"><input name="role" placeholder="Role" style="flex:1"><button class="btn sm" type="submit">Add</button></form></div>
+
+<div class="card"><h2>⬢ Links ({{ links|length }})</h2>
+<table><tr><th>ID</th><th>Link</th><th>Tier</th><th>Sources</th></tr>
+{% for l in links %}<tr><td class="mono">{{ l.id }}</td><td><b>{{ l.name }}</b><br><span class="muted">{{ l.circuit_id }} · {{ l.responsible_team }}</span></td><td><span class="pill info">{{ l.tier }}</span></td><td class="mono" style="font-size:12px">{{ l.sources }}</td></tr>{% endfor %}</table>
+<div class="muted" style="font-size:13px; margin-top:8px">Customers ({{ customers|length }}): {{ customers|map(attribute='name')|join(' · ') }}</div>
+<div class="muted" style="font-size:12.5px">Bulk import: <code>python tools/import_csv.py --kind links --file data/seed/links.csv</code></div></div>
+</div>
+
+<div class="grid2">
+<div class="card"><h2>⇄ Escalation steps</h2>
+<table><tr><th>Scope</th><th>Step</th><th>Contact</th><th>Wait</th></tr>
+{% for r in rules %}<tr><td class="mono">{{ r.link_id or r.customer_id }}</td><td class="mono">{{ r.step_order }}</td><td class="mono">{{ r.contact_id }}</td><td class="mono">{{ r.wait_minutes }}m</td></tr>{% endfor %}</table>
+<form method="post" action="/admin/rules" style="display:flex; gap:8px; margin-top:10px"><input name="link_id" placeholder="Link ID"><input name="contact_id" placeholder="Contact ID"><input name="step_order" placeholder="Step"><input name="wait_minutes" placeholder="Wait min"><button class="btn sm" type="submit">Add</button></form></div>
+
+<div class="card"><h2>〜 Maintenance windows</h2>
+{% for w in windows %}<p><span class="pill major">{{ w.target_type }}</span> <b>{{ w.target }}</b> <span class="mono" style="font-size:12px">{{ w.start }} → {{ w.end }}</span><br><span class="muted">{{ w.reason }}</span></p>{% else %}<p class="muted">None — alerts flow everywhere.</p>{% endfor %}
+<form method="post" action="/admin/maintenance" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px"><input name="target" placeholder="device/host or link id" style="flex:1"><select name="target_type" style="max-width:130px"><option>device</option><option>link</option></select><input name="start" placeholder="2026-10-12T22:00" style="flex:1"><input name="end" placeholder="2026-10-13T02:00" style="flex:1"><input name="reason" placeholder="reason" style="flex:1"><button class="btn sm" type="submit">Add</button></form></div>
+</div>
+
+<div class="card"><h2>◉ Users</h2>
+<table><tr><th>Username</th><th>Role</th><th>Active</th></tr>{% for u in users %}<tr><td><b>{{ u.username }}</b></td><td><span class="pill info">{{ u.role }}</span></td><td>{{ u.active }}</td></tr>{% endfor %}</table>
+<form method="post" action="/admin/users" style="display:flex; gap:8px; margin-top:10px"><input name="username" placeholder="username"><input name="name" placeholder="name"><input name="role" placeholder="engineer"><input name="password" placeholder="password"><button class="btn sm" type="submit">Add user</button></form></div>
+{% endblock %}

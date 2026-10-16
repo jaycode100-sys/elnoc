@@ -1,0 +1,53 @@
+{% extends "base.html" %}{% block title %}Command deck{% endblock %}
+{% block pagetitle %}Command deck{% endblock %}
+{% block pagesub %}Every alert, every wait, every shift — at a glance. Red means chase it.{% endblock %}
+{% block body %}
+<div class="hero">
+  <span class="eyebrow"><span class="pulse-dot"></span> NOC live · Africa/Lagos</span>
+  <h1>Know the network<br><span class="grad">before it pages you.</span></h1>
+  <p class="lead">{{ open_cases|length }} open · {{ waiting|length }} waiting on other teams · {{ shift_cases|length }} opened this shift. Phoenix stays the official ticket — ELNOC is the twin you actually work in.</p>
+  <div class="hero-cta">
+    <a class="btn" href="/quicklog">⚡ Quick Log <kbd>Ctrl+Shift+L</kbd></a>
+    <a class="btn violet" href="/handover">⇄ Build handover</a>
+    <a class="btn ghost" href="/export/cases.csv">⬇ Cases CSV</a>
+  </div>
+</div>
+
+<div class="stats" id="deck-stats" data-poll="/api/deck-stats">
+  <div class="stat bad anim" style="--i:0"><div class="k">Open / escalated</div><div class="v" data-stat="open" data-count="{{ open_cases|length }}">{{ open_cases|length }}</div><div class="s">needs an owner right now · <span data-stat-note>live</span></div></div>
+  <div class="stat warn anim" style="--i:1"><div class="k">Waiting on others</div><div class="v" data-stat="waiting" data-count="{{ waiting|length }}">{{ waiting|length }}</div><div class="s">stale glows red after 2h</div></div>
+  <div class="stat anim" style="--i:2"><div class="k">This shift</div><div class="v" data-stat="shift" data-count="{{ shift_cases|length }}">{{ shift_cases|length }}</div><div class="s">opened since 07:00 / 19:00</div></div>
+  <div class="stat good anim" style="--i:3"><div class="k">Corpus</div><div class="v" data-stat="total" data-count="{{ total }}">{{ total }}</div><div class="s">cases feeding similar-case search</div></div>
+</div>
+
+<div class="tiers">
+  <div class="tier"><div class="glyph">⬢</div><div><b>Core</b><span>1-min alert delay · instant page</span></div></div>
+  <div class="tier"><div class="glyph">⬣</div><div><b>Distribution</b><span>1-min delay · instant page</span></div></div>
+  <div class="tier"><div class="glyph">⬔</div><div><b>Access</b><span>5-min delay · digest + page</span></div></div>
+  <div class="tier"><div class="glyph">○</div><div><b>Edge / PON</b><span>SmartOLT + PRTG correlated</span></div></div>
+</div>
+
+<div class="grid2">
+<div class="panel"><h2>◉ Waiting on others</h2><p class="muted" style="margin-top:0">Grouped instinct: chase one party, clear many links. <a href="/handover">Group view →</a></p>
+<table><tr><th>Case</th><th>Link</th><th>Waiting on</th><th>Age</th><th>State</th></tr>
+{% for c in waiting %}<tr class="{% if c._stale %}stale{% endif %} {% if c._breach %}breach{% endif %}">
+<td><a href="/cases/{{ c.id }}">#{{ c.id }}</a></td><td><b>{{ c._link_name }}</b><br><span class="muted">{{ c._customer_name }}</span></td>
+<td><span class="pill {% if c._stale %}stale{% else %}major{% endif %}">{{ c.waiting_on or '—' }}</span></td>
+<td class="mono">{{ c._age }}m {% if c._stale %}· STALE{% endif %}{% if c._breach %} · MTTR{% endif %}{% if c._upd_flag %}<br><span class="pill stale" title="{{ c._upd.current[:160] }}">{{ c._upd_flag }}</span>{% endif %}</td>
+<td class="muted">{{ c.status }} / {{ c.link_state }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">Nothing waiting. The night is quiet — suspiciously quiet. Check collectors.</td></tr>{% endfor %}</table></div>
+
+<div class="panel"><h2>⚡ Open cases</h2><p class="muted" style="margin-top:0">Severity glows; click through to work the timeline.</p>
+<table><tr><th>Case</th><th>Link &amp; symptom</th><th>Sev</th><th>Age</th></tr>
+{% for c in open_cases %}<tr class="{% if c._breach %}breach{% endif %}">
+<td><a href="/cases/{{ c.id }}">#{{ c.id }}</a></td>
+<td><b>{{ c._link_name }}</b><br><span class="muted">{{ (c.symptom or '')[:110] }}</span></td>
+<td><span class="badge {{ c.severity }}">{{ c.severity }}</span></td><td class="mono">{{ c._age }}m</td></tr>
+{% else %}<tr><td colspan="4" class="muted">No open cases. Log the next one in under 30 seconds.</td></tr>{% endfor %}</table></div>
+</div>
+
+<div class="panel"><h2>〜 Delivery health</h2><p class="muted" style="margin-top:0">Per-channel log (FR-34). Failures retry until one channel lands. <a href="/collector-status">Collector status →</a></p>
+<table><tr><th>ID</th><th>Case</th><th>Channel</th><th>Error</th></tr>
+{% for n in failed %}<tr><td class="mono">{{ n.id }}</td><td><a href="/cases/{{ n.case_id }}">#{{ n.case_id }}</a></td><td><span class="pill major">{{ n.channel }}</span></td><td class="muted">{{ (n.error or '')[:180] }}</td></tr>
+{% else %}<tr><td colspan="4" class="muted">No failed deliveries. Every channel is landing.</td></tr>{% endfor %}</table></div>
+{% endblock %}

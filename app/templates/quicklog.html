@@ -1,0 +1,79 @@
+{% extends "base.html" %}{% block title %}Quick Log{% endblock %}
+{% block pagetitle %}Quick Log{% endblock %}
+{% block pagesub %}Hotkey → shorthand → Enter → one line → <kbd>Ctrl+Enter</kbd>. Under 30 seconds, even at 3am.{% endblock %}
+{% block body %}
+<div class="palette">
+  <form class="palette-bar" method="get" action="/quicklog">
+    <span class="key">⌘K</span>
+    <input type="text" name="q" id="q" placeholder="Type shorthand — try “ltv8 ikeja” — then Enter" value="{{ q }}" autofocus autocomplete="off" style="flex:1">
+    <input type="text" name="device" value="{{ device }}" placeholder="Device ← window title" style="max-width:260px">
+    <button type="submit">Search</button>
+  </form>
+  <div class="muted" style="padding:10px 18px; font-size:12.5px">Press <kbd>/</kbd> or <kbd>Ctrl+K</kbd> anywhere to jump here · <kbd>Ctrl+Shift+L</kbd> opens this page from anywhere in ELNOC (<kbd>Alt+Shift+L</kbd> fallback) · the desktop pane answers the same hotkey OS-wide (see guide below).</div>
+  {% for r in results %}
+  <div class="result" id="res-{{ r.link_id }}" onclick="selectLink({{ r.link_id }},'{{ r.link_name }}')">
+    <span class="rank">#{{ loop.index }}</span>
+    <div><b>{{ r.link_name }}</b> <span class="pill info">{{ r.tier }}</span><br>
+    <span class="meta">{{ r.customer }} · {{ r.circuit_id }} · {{ r.a_end }} ↔ {{ r.b_end }} · {{ r.responsible_team }}</span></div>
+    <span class="score">{{ r.score }}</span>
+    <button class="btn sm ghost" type="button">Select ⏎</button>
+  </div>
+  <div class="muted" id="info-{{ r.link_id }}" style="padding:0 18px 10px 62px; font-size:13px"></div>
+  {% else %}
+  {% if q %}<div style="padding:18px" class="muted">No match — quick-create below with three fields (FR-15): customer, link, circuit. The registry grows with you.</div>{% endif %}
+  {% endfor %}
+</div>
+
+<div class="grid2" style="margin-top:16px">
+<div class="card"><h2>✎ Log the symptom</h2><p class="muted" style="margin-top:0">One line is enough to open. Everything else can wait until close-out.</p>
+<form id="ql" onsubmit="return saveQL(event)">
+<input type="hidden" id="link_id"><input type="hidden" id="typed" value="{{ q }}">
+<div class="formrow"><div><label>Link</label><input id="linkname" readonly placeholder="Pick a match above"></div>
+<div><label>Device (editable — came from window title)</label><input id="device2" value="{{ device }}" placeholder="PuTTY title / WinBox / IP"></div></div><br>
+<label>Symptom — one line</label><input id="symptom" placeholder="far end not transmitting, rsl low" autocomplete="off"><br><br>
+<div class="formrow"><div><label>Severity</label><select id="severity"><option>critical</option><option selected>major</option><option>minor</option><option>info</option></select></div>
+<div><label>Link state</label><select id="link_state"><option>down</option><option>degraded</option><option>up</option></select></div></div><br>
+<div class="formrow"><div><label>Escalation level</label><select id="elevel"><option value="">— unset —</option><option>L1</option><option>L2</option><option>L3</option><option>Vendor</option></select></div>
+<div><label>&nbsp;</label><div class="muted" style="font-size:12.5px">L1 first-line · L2 advanced · L3 senior · Vendor third-party path</div></div></div><br>
+<label>Issue detected (optional — when it actually occurred; escalation time stays system-managed)</label><input id="issue_at" type="datetime-local"><br><br>
+<label>…or quick-create (FR-15)</label>
+<div class="formrow"><div><input id="cname" placeholder="Customer name"></div><div><input id="lname" placeholder="Link name"></div></div><br>
+<input id="circ" placeholder="Circuit ID (optional)"><br><br>
+<button type="submit">Save case ⏎ (Ctrl+Enter)</button> <span id="out" class="muted"></span></form></div>
+
+<div class="card"><h2>◈ What happens next</h2>
+<p><b>1.</b> Card auto-fills: customer, ends, team, escalation steps, last 3 cases on the link.</p>
+<p><b>2.</b> Similar cases surface the fix that worked last time — check the RSL detail first on LTV8.</p>
+<p><b>3.</b> Critical pages the primary contact by email + WhatsApp instantly; others digest.</p>
+<p><b>4.</b> <span class="mono">/cases/&lt;id&gt;/phoenix.txt</span> gives you one-step paste into Phoenix (official record).</p>
+<div class="muted" style="font-size:13px">The client is deliberately dumb: hotkey only. No keystroke logging, no silent clipboard reads, no screenshots — evidence attaches only when you choose a file.</div></div>
+</div>
+<script>
+var selIdx = 0;
+async function selectLink(id,name){
+ document.getElementById('link_id').value=id; document.getElementById('linkname').value=name;
+ document.querySelectorAll('.result').forEach(function(e){e.classList.remove('sel')});
+ var row=document.getElementById('res-'+id); if(row) row.classList.add('sel');
+ const r=await fetch('/api/link-info/'+id); const j=await r.json();
+ var steps=(j.steps||[]).map(function(s){return 'Step '+s.order+': '+s.contact+' ('+s.wait+'m)'}).join(' · ');
+ var last3=(j.last3||[]).map(function(c){return '#'+c.id+' '+c.symptom}).join('  |  ');
+ document.getElementById('info-'+id).textContent='Escalation: '+steps+'   ‖   Last: '+last3;
+ document.getElementById('symptom').focus();
+}
+async function saveQL(e){ e.preventDefault();
+ const body={link_id:parseInt(document.getElementById('link_id').value||'0')||null,
+  customer_name:document.getElementById('cname').value, link_name:document.getElementById('lname').value,
+  circuit_id:document.getElementById('circ').value,
+  device:document.getElementById('device2').value, symptom:document.getElementById('symptom').value,
+  typed_query:document.getElementById('typed').value, severity:document.getElementById('severity').value,
+  link_state:document.getElementById('link_state').value,
+  escalation_level:document.getElementById('elevel').value,
+  issue_detected_at:document.getElementById('issue_at').value};
+ const r=await fetch('/api/quicklog',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+ const j=await r.json();
+ if(r.ok){ document.getElementById('out').innerHTML='Saved <a href="/cases/'+j.case_id+'">case #'+j.case_id+'</a> — <a href="/cases/'+j.case_id+'/phoenix.txt">Copy for Phoenix</a>'; elnocToast('Case #'+j.case_id+' logged.'); }
+ else document.getElementById('out').textContent='Error: '+j.error;
+ return false; }
+document.addEventListener('keydown',function(e){ if(e.ctrlKey&&e.key==='Enter'){ var f=document.getElementById('ql'); if(f) saveQL(e); }});
+</script>
+{% endblock %}

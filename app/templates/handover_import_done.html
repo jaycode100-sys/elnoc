@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}Import #{{ imp.id }} applied{% endblock %}
+{% block pagetitle %}Import #{{ imp.id }} — {{ imp.shift_date }}{% endblock %}
+{% block pagesub %}Applied by {{ imp.imported_by }} at {{ imp.applied_at }}. Every line accounted for.{% endblock %}
+{% block body %}
+<div class="card"><table><tr><th>Entry</th><th>Outcome</th></tr>
+{% for e in entries %}<tr><td><b>{{ e.link_name }}</b><br><span class="muted" style="font-size:12.5px">{{ (e["update"] or '')[:160] }}</span></td>
+<td>{% if 'applied' in (e.outcome or '') %}<span class="pill ok">{{ e.outcome }}</span>{% else %}<span class="pill major">{{ e.outcome }}</span>{% endif %}</td></tr>{% endfor %}</table>
+<p><a class="btn" href="/handover">Back to handover →</a> <a class="btn ghost" href="/handover/import">Import another</a></p></div>
+{% endblock %}

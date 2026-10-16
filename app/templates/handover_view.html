@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block title %}Handover {{ h.id }}{% endblock %}
+{% block pagetitle %}Handover #{{ h.id }} · {{ h.shift_date }} ({{ h.shift }}){% endblock %}
+{% block pagesub %}From {{ h.from_engineer }} — unresolved links first, resolved after.{% endblock %}
+{% block body %}
+<div class="card"><pre class="wa" id="hotext">{{ text }}</pre>
+<div style="display:flex; gap:10px; flex-wrap:wrap">
+<button onclick="elnocCopy('hotext')">⧉ Copy for WhatsApp (FR-42)</button>
+<a class="btn ghost" href="/handover/{{ h.id }}/txt">Plain .txt</a>
+<a class="btn ghost" href="/handover/{{ h.id }}/csv">⬇ CSV for sheet (FR-43)</a>
+</div>
+<p class="muted" style="font-size:13px">Text options (presentation only — stored cases unchanged):
+<a href="/handover/{{ h.id }}">clean team style</a> ·
+<a href="/handover/{{ h.id }}?stale=1">+ question stale updates</a> ·
+<a href="/handover/{{ h.id }}?notes=1">+ resolved notes</a> ·
+<a href="/handover/{{ h.id }}?stale=1&notes=1">+ both</a>
+{% if stale_on %}<span class="pill stale">stale flags on</span>{% endif %}
+{% if notes_on %}<span class="pill info">resolved notes on</span>{% endif %}</p></div>
+{% if questioned %}<div class="card" style="border-color:var(--warn)"><h2>◉ Question these updates</h2>
+<p class="muted" style="margin-top:0">Same UPDATE text for 12h+ (repeat at 48h). Ask for a fresh finding before forwarding.</p>
+{% for c in questioned %}<p><a href="/cases/{{ c.id }}">#{{ c.id }}</a> <b>{{ c._link_name }}</b> — <span class="pill stale">{{ c._upd_flag }}</span><br><span class="muted">{{ c._upd.current[:200] }}</span></p>{% endfor %}</div>{% endif %}
+<div class="grid2">
+<div class="card"><h2>◉ Acknowledgement (FR-41)</h2>
+{% if h.acknowledged_by %}<p><span class="pill ok">Acknowledged</span> by <b>{{ h.acknowledged_by }}</b> at <span class="mono">{{ h.acknowledged_at }}</span></p>
+{% else %}<form method="post" action="/handover/{{ h.id }}/ack" style="display:flex; gap:8px"><input name="name" value="{{ user.username }}" style="flex:1"><button type="submit">Acknowledge on screen</button></form>{% endif %}</div>
+<div class="card"><h2>▤ Links in this handover</h2>
+<table><tr><th>Case</th><th>Link</th><th>State</th></tr>
+{% for c in cases %}<tr><td><a href="/cases/{{ c.id }}">#{{ c.id }}</a></td><td>{{ c._link_name }}</td><td>{{ c.link_state }}</td></tr>{% endfor %}</table></div>
+</div>
+{% endblock %}

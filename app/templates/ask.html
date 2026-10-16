@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% block title %}Ask ELNOC{% endblock %}
+{% block pagetitle %}Ask ELNOC{% endblock %}
+{% block pagesub %}Phase 6a · glossary-first, numbers from code, every answer cited. People approve everything that acts.{% endblock %}
+{% block body %}
+<div class="grid3" style="margin-bottom:14px">
+<div class="tier"><div class="glyph">✦</div><div><b>Explainer</b><span>RSL, far-end, PON… in plain words</span></div></div>
+<div class="tier"><div class="glyph">〜</div><div><b>RSL interpreter</b><span>margin, status, first checks</span></div></div>
+<div class="tier"><div class="glyph">▤</div><div><b>History analyst</b><span>read-only over your cases</span></div></div>
+</div>
+<div class="card"><h2>✦ Ask</h2>
+<div style="display:flex; gap:8px"><input id="qq" placeholder="e.g. What is RSL? · −28 dBm on GPON-C+? · which links waited longest on Oregun?" style="flex:1"><button onclick="ask()">Ask</button></div>
+<div class="chat" id="chat" style="margin-top:14px"><div class="bubble ai">Try me: <b>“−28 dBm on GPON-C+ — bad?”</b> or <b>“what does far-end mean?”</b><br><span class="src">Sources always cited · “I don't know” is an accepted answer.</span></div></div>
+</div>
+<script>
+async function ask(){
+ var q=document.getElementById('qq').value; if(!q.trim()) return;
+ var chat=document.getElementById('chat');
+ chat.insertAdjacentHTML('beforeend','<div class="bubble me">'+q.replace(/</g,'&lt;')+'</div>');
+ const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
+ const j=await r.json();
+ var body = r.ok ? (j.answer+'<br><span class="src">tools: '+(j.tools||[]).join(', ')+' · sources: '+j.sources+' · confidence: '+j.confidence+'</span>')
+                 : ('Error: '+(j.error||r.status));
+ chat.insertAdjacentHTML('beforeend','<div class="bubble ai">'+body+'</div>');
+ document.getElementById('qq').value='';
+}
+document.getElementById('qq').addEventListener('keydown',function(e){ if(e.key==='Enter') ask(); });
+</script>
+{% endblock %}
