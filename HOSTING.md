@@ -38,36 +38,56 @@ WhatsApp ack links resolve on recipients' phones.
    of `/admin*` and `/report/*` so only team emails reach them; leave `/ack/*`
    public — external contacts acknowledge from WhatsApp without accounts.
 
-### 1b. Off-site backups to Supabase Storage (≈15 min, free tier)
+### 1b. Off-site backups to Supabase Storage — DONE, verified
 
-1. supabase.com → New project → note **Project URL** + **service_role** key
-   (Project Settings → API; the service key stays server-side, never in git).
+Bucket `elnoc-backups` created private; a real nightly copy uploaded and listed
+back from the API. Keys live in `.env` only (`SUPABASE_URL`,
+`SUPABASE_SERVICE_KEY`, `SUPABASE_BACKUP_BUCKET`) — never in git.
+
+1. ✅ Create project → 2. ✅ private bucket → 3. ✅ keys in `.env`
+4. Run: `py -V:3.14 tools\backup_supabase.py` → prints `local:` then `off-site:`
+   (first run confirmed `elnoc-backups/elnoc-20261016-1837.db`, 160 KB).
+5. Schedule it nightly (Task Scheduler) after `tools\backup.py`.
+6. Restore drill monthly: download an object, open it, run one query.
+
+Full procedure for re-creating from zero:
+1. supabase.com → New project (region: **eu-west-2** for this account).
 2. Storage → New bucket `elnoc-backups` (**private**).
-3. `.env`: `SUPABASE_URL=…`, `SUPABASE_SERVICE_KEY=…`
-   (`SUPABASE_BACKUP_BUCKET=elnoc-backups`).
-4. `py -V:3.14 tools/backup_supabase.py` → prints `local:` then `off-site:`.
-   Nightly via Task Scheduler after `tools\backup.py`.
-5. Restore drill monthly: download an object, open it locally, run one query.
+3. Project Settings → API → copy Project URL + `service_role` key.
+4. Add all three values to `.env`.
 
-## Tier 2 — full Supabase Postgres move (a migration weekend, not today)
+## Tier 2 — full Supabase Postgres move — DONE, verified
 
-Run this only when SQLite strains (concurrent writers, DB > ~1 GB, or you want
-Supabase Auth/Realtime). The code is ready: setting `DATABASE_URL` switches
-the engine to pooled Postgres, SQLite pragmas/FTS5 stay out of the way, and
-similar-case search falls back to keyword ILIKE (verified in tests).
+Status: **live-ready and verified** for this project. The code is ready:
+setting `DATABASE_URL` switches the engine to pooled Postgres, SQLite
+pragmas/FTS5 stay out of the way, and similar-case search falls back to
+keyword ILIKE (pytest-covered).
 
-1. Supabase → Database → Connection string (**pooler**, port 6543 for the app;
-   direct port 5432 for the one-off load): `DATABASE_URL=postgresql+psycopg://…`
-2. `pip install -r requirements.txt` (pulls `psycopg[binary]`).
-3. Start the app once against the empty database — tables self-create.
-4. Load data: export SQLite (`sqlite3 data/elnoc.db .dump`) and import, or
-   re-run the four `tools/import_csv.py --kind …` files, then spot-check
-   counts (cases/links/contacts) against the old DB.
-5. Keep the SQLite file + Supabase backups for two weeks, then cut over
-   `ELNOC_BASE_URL` and decommission.
-6. Later, optionally: Supabase Auth (replace session cookies), Storage for
-   `evidence/` (replace local paths), Realtime on a dashboard channel. Each is
-   a separate change — say which one and it gets its own plan + tests.
+Verified connection string (region eu-west-2 = London; set in `.env`):
+
+    DATABASE_URL=postgresql+psycopg://postgres.<project-ref>:<url-encoded-password>@aws-0-eu-west-2.pooler.supabase.com:6543/postgres
+
+Password encoding matters: `#` becomes `%23`, `%` becomes `%25` (your DB
+password starts with `%b2_…`, so both are encoded).
+
+What was proven against the live project:
+1. `tools/migrate_sqlite_to_pg.py --dry-run` → reads every table, writes nothing.
+2. Real run → **all 22 tables matched** (13 cases, 5 links, 6 contacts, 26 case events…).
+3. `tools/fix_pg_sequences.py` → **20 sequences synced**. Required: Postgres
+   sequences stay at 1 after an explicit-ID copy, so the first real INSERT dies
+   on a duplicate key. The migration now calls this automatically; the tool is
+   the idempotent standalone repair.
+4. App boots on Postgres; login, `/cases`, case page, dashboard, handover,
+   quicklog, weekly, deck-stats all render; a real quick-log **write** succeeded
+   and the probe row was removed afterwards.
+5. Two Postgres-specific fixes came out of this: `prepare_threshold=None` in the
+   engine (Supavisor's transaction pooler rejects client-side prepared
+   statements with `DuplicatePreparedStatement`) and the sequence sync above.
+
+Cutover when you're ready: the SQLite file is still the live default until you
+set `DATABASE_URL` in `.env` and restart the server. Both hold identical data;
+take the off-site backup first, flip, smoke-test the deck, keep SQLite for two
+weeks before decommissioning.
 
 ## What lives where (so nothing surprises you)
 

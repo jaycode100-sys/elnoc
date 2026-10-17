@@ -42,7 +42,12 @@ def make_engine(url: str):
             cur.close()
 
         return eng
-    return create_engine(url, pool_pre_ping=True, future=True)
+    return create_engine(
+        # prepare_threshold=None: psycopg's server-side prepared statements
+        # die on transaction poolers (Supabase Supavisor 6543) with
+        # DuplicatePreparedStatement. Disabling costs ~nothing at NOC scale.
+        url, pool_pre_ping=True, future=True,
+        connect_args={"prepare_threshold": None})
 
 
 engine = make_engine(_db_url())

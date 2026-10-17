@@ -16,11 +16,12 @@ import sys
 
 sys.path.insert(0, ".")
 
+from app import models  # noqa: E402,F401  (register table mappings)
+from app.database import Base, make_engine  # noqa: E402
+
 
 def migrate(src_url: str, dst_url: str, dry_run: bool = False) -> dict:
     from sqlalchemy import create_engine
-    from app import models  # noqa: F401  (register mappings)
-    from app.database import Base, make_engine
 
     src = create_engine(src_url, future=True)
     dst = make_engine(dst_url)
@@ -36,7 +37,32 @@ def migrate(src_url: str, dst_url: str, dry_run: bool = False) -> dict:
             dst_n = 0 if dry_run else dconn.execute(
                 select(func.count()).select_from(table)).scalar()
             report[table.name] = [len(rows), dst_n]
+    if not dry_run:
+        sync_sequences(dst)
     return report
+
+
+def sync_sequences(dst) -> int:
+    """Postgres sequences stay at 1 after an explicit-ID copy, so the first
+    real INSERT collides (duplicate key on the pkey). Advance every sequence
+    past its table's max(id). SQLite has no sequences — no-op there."""
+    from sqlalchemy import text
+    with dst.begin() as conn:
+        dialect = dst.dialect.name
+        if dialect != "postgresql":
+            return 0
+        fixed = 0
+        for table in Base.metadata.sorted_tables:
+            pk = list(table.primary_key.columns)
+            if not pk or not pk[0].name == "id":
+                continue
+            seq = f"{table.name}_id_seq"
+            conn.execute(text(
+                f"SELECT setval('{seq}', GREATEST("
+                f'COALESCE((SELECT MAX(id) FROM "{table.name}"), 0), 1), '
+                f'EXISTS (SELECT 1 FROM "{table.name}"))'))
+            fixed += 1
+        return fixed
 
 
 def main() -> int:
