@@ -1,0 +1,78 @@
+{% extends "base.html" %}{% block title %}{{ link.name }} — MORE INFO{% endblock %}
+{% block pagetitle %}{{ link.name }} — MORE INFO{% endblock %}
+{% block pagesub %}{{ customer.name if customer else '' }} · {{ link.circuit_id }} · {{ link.tier }}{% endblock %}
+{% block body %}
+<div class="hero" style="padding:24px 26px">
+  <span class="eyebrow"><span class="pulse-dot"></span> MORE INFO — HOW WE REACH THIS CLIENT</span>
+  <h1 style="font-size:clamp(24px,3vw,36px)">{{ link.name }}</h1>
+  <p class="lead">How we reach this client: {{ reach_line }}</p>
+  <div class="hero-cta">
+    <span class="pill info">{{ link.a_end }} ↔ {{ link.b_end }}</span>
+    <span class="pill info">{{ link.medium }}</span>
+    <span class="pill major">{{ link.responsible_team }}</span>
+    <span class="pill info">sources: {{ link.sources }}</span>
+    <span style="flex:1"></span>
+    <a class="btn sm" href="/cases?link={{ link.id }}">Cases on this link</a>
+  </div>
+</div>
+
+{% if not reach.any_reach %}<div class="card" style="border-color:var(--danger)">
+<b>◉ No contact on file.</b><p class="muted" style="margin:6px 0">Add one below before the next outage — an escalation with nobody to call is worse than no escalation.</p></div>{% endif %}
+
+<div class="grid2">
+<div>
+<div class="card"><h2>◎ Contacts on this link</h2>
+{% for c in reach.contacts %}<div class="tl-item k-note" style="margin-bottom:12px">
+<div class="tl-meta">{{ c.role_label }}{% if c.is_primary %} · PRIMARY{% endif %}
+ {% if c.availability %} · available {{ c.availability }}{% endif %}</div>
+<b>{{ c.name }}</b>{% if c.team %} <span class="muted">— {{ c.team }}</span>{% endif %}
+<br><span class="muted">{{ c.summary }}</span>
+{% if c.combo_note %}<br><span class="muted">order: {{ c.combo_note }}</span>{% endif %}
+{% for ch in c.channels %}<div style="display:flex; gap:8px; align-items:center; padding:4px 0; font-size:13.5px">
+<span class="pill info">{{ ch.channel_label }}</span>
+<span class="mono">{{ ch.value }}</span>{% if ch.label %}<span class="muted">{{ ch.label }}</span>{% endif %}
+{% if ch.primary %}<span class="pill ok">primary</span>{% endif %}
+<form method="post" action="/contacts/{{ c.id }}/channels/{{ ch.id }}/remove" style="margin-left:auto">
+<button class="btn sm ghost" type="submit" title="remove">✕</button></form></div>{% endfor %}
+<form method="post" action="/contacts/{{ c.id }}/channels" style="display:grid; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--line)">
+<div class="formrow"><div><select name="channel">{% for k, v in reach_channels.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+<div><input name="value" placeholder="number / address / group invite"></div></div>
+<div class="formrow"><div><input name="label" placeholder="label e.g. 'Cedarview NOC group'"></div>
+<div><input name="note" placeholder="note"></div></div>
+<label style="display:flex; gap:8px; align-items:center"><input type="checkbox" name="is_primary" style="width:auto"> preferred channel</label>
+<button class="btn sm" type="submit">Add channel</button></form>
+</div>{% else %}<p class="muted">No contacts linked to this link yet.</p>{% endfor %}
+
+<div class="card"><h2>＋ Attach a contact to this link</h2>
+<form method="post" action="/links/{{ link.id }}/contacts" style="display:grid; gap:8px">
+<div class="formrow"><div><label>Contact</label><select name="contact_id">{% for c in contacts %}<option value="{{ c.id }}">{{ c.name }} {% if c.team %}— {{ c.team }}{% endif %}</option>{% endfor %}</select></div>
+<div><label>Role</label><select name="role">{% for k, v in role_labels.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div></div>
+<label>Combination note — the order to try them</label><input name="combo_note" placeholder="e.g. WhatsApp first, email at 22:00, then call the field engineer">
+<label style="display:flex; gap:8px; align-items:center"><input type="checkbox" name="is_primary" style="width:auto"> make this the primary contact</label>
+<button type="submit">Attach to link</button></form></div>
+</div>
+
+<div>
+<div class="card"><h2>⇄ Escalation chain &amp; how each step is reached</h2>
+<table><tr><th>Step</th><th>Who</th><th>Wait</th><th>Reach</th></tr>
+{% for s in reach.chain %}<tr><td class="mono">{{ s.step }}</td>
+<td><b>{{ s.contact.name }}</b><br><span class="muted">{{ s.contact.team }}</span></td>
+<td class="mono">{{ s.wait }}m</td>
+<td class="muted">{{ s.contact.summary }}<br><span style="font-size:12px">via {{ s.channels }}</span></td></tr>
+{% else %}<tr><td colspan="4" class="muted">No escalation steps configured (Admin → escalation rules).</td></tr>{% endfor %}</table></div>
+
+<div class="card"><h2>▤ Recent cases on this link</h2>
+<table><tr><th>Case</th><th>Symptom</th><th>State</th><th>Age</th></tr>
+{% for c in cases %}<tr><td><a href="/cases/{{ c.id }}">#{{ c.id }}</a></td>
+<td>{{ (c.symptom or '')[:80] }}</td>
+<td><span class="pill info">{{ c.link_state }}</span></td><td class="mono">{{ c._age }}m</td></tr>
+{% else %}<tr><td colspan="4" class="muted">No cases yet.</td></tr>{% endfor %}</table></div>
+
+<div class="card"><h2>◈ Registry record</h2>
+<p class="muted" style="font-size:13.5px">
+circuit <b>{{ link.circuit_id or '—' }}</b> · medium <b>{{ link.medium }}</b><br>
+aliases <b>{{ link.aliases or '—' }}</b> · optic A <b>{{ link.optic_a or '—' }}</b> · optic B <b>{{ link.optic_b or '—' }}</b><br>
+detected in <b>{{ link.sources }}</b> · Phoenix ticket field lives on each case, never in the handover.</p></div>
+</div>
+</div>
+{% endblock %}

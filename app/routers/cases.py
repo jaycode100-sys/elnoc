@@ -87,6 +87,9 @@ def case_page(request: Request, case_id: int, user=Depends(get_current_user),
     from ..routers.evidence import outstanding_challenge, thread_rows
     from ..services.link_state import recommend, challenge_card, challenge_text
     rec = recommend(db, case)
+    from ..services.contacts import compact_reach, reach_summary
+    reach_line = compact_reach(db, db.get(Link, case.link_id)) if case.link_id else ""
+    reach = reach_summary(db, db.get(Link, case.link_id)) if case.link_id else {"any_reach": False, "primary": None}
     return templates.TemplateResponse(request, "case.html", { "user": user, "case": case, "customer_name": cn, "link_name": ln,
          "events": events, "sims": sims, "atts": atts, "affected": affected,
          "categories": ROOT_CAUSE_CATEGORIES, "stale": is_stale_wait(case),
@@ -96,7 +99,9 @@ def case_page(request: Request, case_id: int, user=Depends(get_current_user),
          "state_challenge": challenge_text(rec),
          "evidence": thread_rows(db, case.id),
          "ev_kinds": EVIDENCE_KINDS,
-         "resolution_challenge": outstanding_challenge(db, case.id)})
+         "resolution_challenge": outstanding_challenge(db, case.id),
+         "reach_line": reach_line, "reach_primary": reach.get("primary"),
+         "reach_any": reach.get("any_reach")})
 
 @router.post("/cases/{case_id}/notes")
 def add_note(case_id: int, text: str = Form(""), kind: str = Form("note"),

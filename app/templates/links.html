@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Links{% endblock %}
+{% block pagetitle %}Links{% endblock %}
+{% block pagesub %}Every link, and how we reach the client on it. Click one for MORE INFO.{% endblock %}
+{% block body %}
+<div class="panel"><table><tr><th>Link</th><th>Customer</th><th>Tier</th><th>How we reach them</th></tr>
+{% for l in links %}<tr>
+<td><a href="/links/{{ l.id }}"><b>{{ l.name }}</b></a></td>
+<td class="muted">{{ l.customer.name if l.customer else '' }}</td>
+<td><span class="pill info">{{ l.tier }}</span></td>
+<td class="muted">{{ l._reach }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

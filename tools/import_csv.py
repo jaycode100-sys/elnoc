@@ -3,6 +3,8 @@ python tools/import_csv.py --kind customers --file data/seed/customers.csv
 python tools/import_csv.py --kind links --file data/seed/links.csv
 python tools/import_csv.py --kind contacts --file data/seed/contacts.csv
 python tools/import_csv.py --kind devices --file data/seed/devices.csv
+python tools/import_csv.py --kind channels --file data/seed/channels.csv
+python tools/import_csv.py --kind link_contacts --file data/seed/link_contacts.csv
 """
 import argparse, sys
 sys.path.insert(0, ".")
@@ -11,7 +13,9 @@ from app.adapters.phoenix_csv import import_registry_csv
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--kind", required=True, choices=["customers", "links", "contacts", "devices"])
+    ap.add_argument("--kind", required=True,
+                    choices=["customers", "links", "contacts", "devices",
+                             "channels", "link_contacts"])
     ap.add_argument("--file", required=True)
     a = ap.parse_args()
     init_db()

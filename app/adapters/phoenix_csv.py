@@ -2,7 +2,7 @@
 from __future__ import annotations
 import csv
 from sqlalchemy.orm import Session
-from ..models import Customer, Link, Contact, SiteDevice
+from ..models import Customer, Link, Contact, SiteDevice, ContactChannel, LinkContact
 
 def import_registry_csv(db: Session, kind: str, path: str) -> int:
     """kind in customers|links|contacts. Returns rows imported."""
@@ -64,6 +64,68 @@ def import_registry_csv(db: Session, kind: str, path: str) -> int:
                 c.whatsapp_number = row.get("whatsapp_number", c.whatsapp_number or "")
                 c.preferred_channels = row.get("preferred_channels", c.preferred_channels or "email,whatsapp")
                 c.availability_hours = row.get("availability_hours", c.availability_hours or "")
+                n += 1
+            elif kind == "channels":
+                # contact_id/name + channel,value,label -> how we reach them
+                contact = None
+                if (row.get("contact_id") or "").strip().isdigit():
+                    contact = db.get(Contact, int(row["contact_id"]))
+                if contact is None and (row.get("contact") or "").strip():
+                    contact = db.query(Contact).filter(
+                        Contact.name == row["contact"].strip()).first()
+                if contact is None:
+                    continue
+                ch = (row.get("channel") or "whatsapp").strip().lower()
+                val = (row.get("value") or "").strip()
+                lab = (row.get("label") or "").strip()
+                if not val:
+                    # fall back to the flat contact columns
+                    val = {"whatsapp": contact.whatsapp_number,
+                           "email": contact.email,
+                           "phone": contact.phone}.get(ch, "")
+                if not val:
+                    continue
+                dup = db.query(ContactChannel).filter(
+                    ContactChannel.contact_id == contact.id,
+                    ContactChannel.channel == ch,
+                    ContactChannel.value == val).first()
+                if not dup:
+                    db.add(ContactChannel(contact_id=contact.id, channel=ch,
+                                          value=val[:300], label=lab[:200],
+                                          note=row.get("note", "")[:400],
+                                          is_primary=str(row.get("primary", "")).lower()
+                                          in ("1", "y", "yes", "true")))
+                n += 1
+            elif kind == "link_contacts":
+                link = db.query(Link).filter(
+                    Link.name == (row.get("link") or "").strip()).first()
+                if not link:
+                    continue
+                contact = None
+                if (row.get("contact_id") or "").strip().isdigit():
+                    contact = db.get(Contact, int(row["contact_id"]))
+                if contact is None and (row.get("contact") or "").strip():
+                    contact = db.query(Contact).filter(
+                        Contact.name == row["contact"].strip()).first()
+                if contact is None:
+                    continue
+                primary = str(row.get("primary", "")).lower() in ("1", "y", "yes", "true")
+                if primary:
+                    for lc in db.query(LinkContact).filter(
+                            LinkContact.link_id == link.id).all():
+                        lc.is_primary = False
+                exists = db.query(LinkContact).filter(
+                    LinkContact.link_id == link.id,
+                    LinkContact.contact_id == contact.id).first()
+                if exists:
+                    exists.role = row.get("role", exists.role) or exists.role
+                    exists.combo_note = row.get("combo_note", exists.combo_note) or exists.combo_note
+                    exists.is_primary = primary or exists.is_primary
+                else:
+                    db.add(LinkContact(link_id=link.id, contact_id=contact.id,
+                                       role=(row.get("role") or "contact").strip(),
+                                       combo_note=(row.get("combo_note") or "")[:300],
+                                       is_primary=primary))
                 n += 1
             elif kind == "devices":
                 # Sensor/host → link map: hostname must match the PRTG device or

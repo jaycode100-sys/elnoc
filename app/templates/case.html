@@ -5,6 +5,13 @@
 {% if stale %}<div class="card" style="border-color:var(--danger); background:linear-gradient(90deg, rgba(255,84,112,.18), transparent)">◉ <b>STALE WAIT</b> — older than the rule's wait. Re-verify locally or escalate upward. (FR-24)</div>{% endif %}
 {% if upd.flag %}<div class="card" style="border-color:var(--warn); background:linear-gradient(90deg, rgba(255,176,32,.14), transparent)">◉ <b>{{ upd.flag }}</b> — the UPDATE hasn't changed in {{ upd.hours }}h across {{ upd.runs }} entr{{ 'ies' if upd.runs != 1 else 'y' }}. Add a fresh finding or chase the waiting party.</div>{% endif %}
 {% if promo %}<div class="card" style="border-color:var(--gold)">✎ {{ promo }} <a href="/playbooks">Open playbooks →</a></div>{% endif %}
+{% if case.link_id %}<div class="card" style="border-color:var(--line2)">
+<b>◎ How we reach this client</b>
+<span class="muted" style="font-size:14px"> — {{ reach_line }}</span>
+<a class="btn sm ghost" style="float:right" href="/links/{{ case.link_id }}">MORE INFO →</a>
+{% if reach_primary %}<p class="muted" style="font-size:13px; margin:6px 0 0">{{ reach_primary.name }} — {{ reach_primary.summary }}{% if reach_primary.availability %} (available {{ reach_primary.availability }}){% endif %}{% if reach_primary.combo_note %}<br>order: {{ reach_primary.combo_note }}{% endif %}</p>{% endif %}
+{% if not reach_any %}<p style="color:#ff8ba0; font-size:13.5px; margin:6px 0 0">NO CONTACT ON FILE — add one on the link page before escalating.</p>{% endif %}
+</div>{% endif %}
 <div class="card" style="border-color:var(--line2)">
 <b>◉ State check — DEGRADED or UNSTABLE?</b>
 <pre class="wa" style="margin:8px 0">{{ state_challenge }}</pre>

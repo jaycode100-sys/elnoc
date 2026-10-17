@@ -54,6 +54,29 @@ class Link(Base):
     optic_b: Mapped[str] = mapped_column(String(200), default="")
     customer: Mapped["Customer"] = relationship(back_populates="links")
 
+class ContactChannel(Base):
+    """One way to reach one contact. Multiple rows per contact = the
+    COMBINATION (e.g. WhatsApp + Email + group)."""
+    __tablename__ = "contact_channel"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    contact_id: Mapped[int] = mapped_column(ForeignKey("contact.id"))
+    channel: Mapped[str] = mapped_column(String(30), default="whatsapp")
+    value: Mapped[str] = mapped_column(String(300), default="")   # number / address / group invite
+    label: Mapped[str] = mapped_column(String(200), default="")   # e.g. group name, "personal", "desk"
+    note: Mapped[str] = mapped_column(Text, default="")
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
+
+class LinkContact(Base):
+    """Who to reach for this link, and in what role."""
+    __tablename__ = "link_contact"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    link_id: Mapped[int] = mapped_column(ForeignKey("link.id"))
+    contact_id: Mapped[int] = mapped_column(ForeignKey("contact.id"))
+    role: Mapped[str] = mapped_column(String(60), default="contact")  # primary|backup|field|vendor|manager
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
+    combo_note: Mapped[str] = mapped_column(String(300), default="")  # "whatsapp then email at 22:00"
+
+
 class EscalationRule(Base):
     __tablename__ = "escalation_rule"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -309,6 +332,26 @@ ESCALATION_LEVELS = {
 ESCALATION_LEVELS_SHORT = {
     "L1": "first-line", "L2": "advanced technical",
     "L3": "senior", "Vendor": "third-party",
+}
+
+# How a client can be reached. A contact may carry several of these — that is
+# the "combination" the handover/escalation must respect.
+REACH_CHANNELS = {
+    "whatsapp": "WhatsApp (direct number)",
+    "whatsapp_group": "WhatsApp group",
+    "email": "Email",
+    "phone": "Phone (voice call)",
+    "sms": "SMS",
+    "portal": "Customer portal / ticket system",
+    "onsite": "On-site contact (address given)",
+}
+REACH_ROLE_LABELS = {
+    "primary": "Primary contact",
+    "backup": "Backup contact",
+    "field": "Field / on-site engineer",
+    "vendor": "Vendor / third-party",
+    "manager": "Account manager",
+    "contact": "Contact",
 }
 
 # Evidence kinds for the media thread (kind, human label) — the categories the

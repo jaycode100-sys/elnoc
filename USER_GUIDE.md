@@ -51,3 +51,11 @@
     lands.
 18. **Retention:** `py -V:3.14 tools\retention.py` clears handover text older
     than 12 months (cases and evidence are never touched).
+19. **MORE INFO (reach the client):** `Links & contacts` in the rail → any link
+    shows every contact, their roles, each WhatsApp number / email / group, the
+    order to try them, and the escalation chain with how each step is reached.
+    The case page carries a one-line version plus a MORE INFO link. Bulk load
+    with `tools\import_csv.py --kind channels` and `--kind link_contacts`.
+20. **Permanent URL + hosting:** see `HOSTING.md`. One command
+    (`tools\setup_tunnel.ps1`) gives you `https://noc.cedarviewng.com` — free,
+    survives reboots.
