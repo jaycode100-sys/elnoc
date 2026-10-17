@@ -39,3 +39,15 @@
     restoration list with times, and what is still burning with ages and levels.
 14. **Team choices:** see `HANDOVER_MCQ.md` — 30 questions on how the handover
     should look, plus the escalation detail checklist (Part B).
+15. **Handover is gated:** a DOWN link older than 30 minutes with no Phoenix
+    ticket **blocks** the handover. Anyone else gets flagged and prints as
+    `NO PARTY NAMED – ESCALATE NOW`. An override needs a reason and is recorded.
+16. **State challenge:** every case shows both causes side by side —
+    DEGRADED (up but carrying errors/loss) vs UNSTABLE (flapping) — with
+    ELNOC's read from monitoring history. You commit your call.
+17. **Evidence thread:** attach proof per update (location, trace, interface,
+    SmartOLT, PRTG). When a link goes UP, ELNOC challenges for restoration
+    proof (PRTG graph, ONU utilisation, interface pic, learn-MAC) until one
+    lands.
+18. **Retention:** `py -V:3.14 tools\retention.py` clears handover text older
+    than 12 months (cases and evidence are never touched).

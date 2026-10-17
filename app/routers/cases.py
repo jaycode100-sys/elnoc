@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from pathlib import Path
 import hashlib
 from ..database import get_db
-from ..models import Case, CaseEvent, Customer, Link, CaseLink, Attachment, ROOT_CAUSE_CATEGORIES, ESCALATION_LEVELS
+from ..models import Case, CaseEvent, Customer, Link, CaseLink, Attachment, ROOT_CAUSE_CATEGORIES, ESCALATION_LEVELS, EVIDENCE_KINDS
 from ..security import get_current_user, find_secret, audit
 from ..services.similar import similar_cases, sync_fts
 from ..services.escalation import is_stale_wait, is_mttr_breach
@@ -28,6 +28,17 @@ def _names(db, case):
     cust = db.get(Customer, case.customer_id) if case.customer_id else None
     link = db.get(Link, case.link_id) if case.link_id else None
     return (cust.name if cust else "", link.name if link else "")
+
+@router.post("/cases/{case_id}/chase")
+def stamp_chase(case_id: int, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """Record a contact attempt (B3 item 20: time of last contact attempt)."""
+    case = db.get(Case, case_id)
+    case.last_contact_attempt_at = utcnow()
+    db.add(CaseEvent(case_id=case_id, at=utcnow(), engineer=user.username,
+                     kind="escalation",
+                     text=f"Chased {case.waiting_on or 'party'} — contact attempt logged."))
+    db.commit()
+    return RedirectResponse(url=f"/cases/{case_id}", status_code=303)
 
 @router.get("/cases", response_class=HTMLResponse)
 def case_list(request: Request, status: str = "", user=Depends(get_current_user),
@@ -72,11 +83,20 @@ def case_page(request: Request, case_id: int, user=Depends(get_current_user),
                                   Case.link_id == case.link_id).count()
         if n >= 3 and user.role in ("senior", "admin"):
             promo = f"{n} cases share category '{case.root_cause_category}' on this link — consider promoting to a playbook."
+    evs = db.query(CaseEvent).filter(CaseEvent.case_id == case.id).all()
+    from ..routers.evidence import outstanding_challenge, thread_rows
+    from ..services.link_state import recommend, challenge_card, challenge_text
+    rec = recommend(db, case)
     return templates.TemplateResponse(request, "case.html", { "user": user, "case": case, "customer_name": cn, "link_name": ln,
          "events": events, "sims": sims, "atts": atts, "affected": affected,
          "categories": ROOT_CAUSE_CATEGORIES, "stale": is_stale_wait(case),
          "levels": ESCALATION_LEVELS, "suggested": sug, "promo": promo,
-         "upd": _update_watch(db, case)})
+         "upd": _update_watch(db, case),
+         "state_rec": challenge_card(rec), "state_why": rec["why"],
+         "state_challenge": challenge_text(rec),
+         "evidence": thread_rows(db, case.id),
+         "ev_kinds": EVIDENCE_KINDS,
+         "resolution_challenge": outstanding_challenge(db, case.id)})
 
 @router.post("/cases/{case_id}/notes")
 def add_note(case_id: int, text: str = Form(""), kind: str = Form("note"),

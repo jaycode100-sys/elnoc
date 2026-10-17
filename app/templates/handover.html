@@ -1,7 +1,16 @@
 {% extends "base.html" %}{% block title %}Handover{% endblock %}
 {% block pagetitle %}Shift handover{% endblock %}
-{% block pagesub %}Generated {{ today }} — unresolved first, resolved after. WhatsApp text matches the team's style byte-for-byte.{% endblock %}
+{% block pagesub %}Summary first, then unresolved by state, then resolved. Phoenix ticket numbers never leave the app.{% endblock %}
 {% block body %}
+{% if gate %}
+{% if gate.blocks %}<div class="card" style="border-color:var(--danger); background:linear-gradient(90deg, rgba(255,84,112,.14), transparent)">
+<b>◉ Handover blocked — {{ gate.blocks|length }} escalation(s) not ready.</b>
+<p style="margin:8px 0">{% for b in gate.blocks %}• <a href="/cases/{{ b.case_id }}">#{{ b.case_id }} {{ b.link }}</a> — {{ b.detail }}<br>{% endfor %}</p>
+<p class="muted" style="font-size:13px">Open the case and add the Phoenix ticket. If it genuinely cannot be ticketed, override below with a reason — it is recorded.</p></div>{% endif %}
+{% if gate.flags %}<div class="card" style="border-color:var(--warn)">
+<b>◉ {{ gate.flags|length }} unresolved link(s) have nobody named</b>
+<p class="muted" style="font-size:13px; margin:6px 0">{% for f in gate.flags %}• <a href="/cases/{{ f.case_id }}">#{{ f.case_id }} {{ f.link }}</a> — {{ f.detail }}<br>{% endfor %}These will print as <span class="mono">NO PARTY NAMED – ESCALATE NOW</span>.</p></div>{% endif %}
+{% endif %}
 <div class="hero" style="padding:24px 26px">
   <span class="eyebrow"><span class="pulse-dot"></span> Grand handover · {{ today }}</span>
   <h1 style="font-size:clamp(24px,3vw,36px)">Pass the night <span class="grad">without losing a link.</span></h1>
@@ -21,6 +30,10 @@
 <label>Free notes</label><textarea name="free_notes" placeholder="Anything the next shift must feel, not just read…"></textarea><br>
 <label style="display:flex; gap:8px; align-items:center"><input type="checkbox" name="summary" checked style="width:auto"> append detailed SHIFT SUMMARY (tally · duty · restoration)</label><br>
 <label style="display:flex; gap:8px; align-items:center"><input type="checkbox" name="show_wait_age" style="width:auto"> append per-link wait-age (off = exact team style)</label><br>
+{% if gate and gate.blocks %}<div class="card" style="border-color:var(--danger)">
+<label style="display:flex; gap:8px; align-items:center"><input type="checkbox" name="override" style="width:auto"> override the block (recorded in the audit log)</label><br>
+<label>Reason for override</label><input name="override_reason" placeholder="e.g. customer-side fault, Phoenix raised next shift">
+</div>{% endif %}
 <button type="submit">Generate handover</button></form></div>
 <div class="card"><h2>⬆ Import WhatsApp text</h2>
 <p class="muted" style="margin-top:0">Paste today's Daily Handover — ELNOC parses every entry, matches links, diffs updates, and <b>questions anything unchanged 12h+</b> before applying.</p>

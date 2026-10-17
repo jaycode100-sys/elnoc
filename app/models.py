@@ -113,6 +113,13 @@ class Case(Base):
     # "current update on link restoration" block.
     restored_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
+    # Resolution-evidence challenge (MCQ): set UP -> ELNOC asks for proof.
+    resolution_challenged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    last_contact_attempt_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    outage_start: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)  # when the fault itself began
     current_escalation_step: Mapped[int] = mapped_column(Integer, default=0)
     last_escalation_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -169,6 +176,9 @@ class CaseWatcher(Base):
     __table_args__ = (UniqueConstraint("case_id", "contact_id", name="uq_watcher"),)
 
 class Attachment(Base):
+    """Evidence. Attachments form a THREAD per case (MCQ: uploads kept as a
+    thread), so the story of a fault reads top-to-bottom: location -> trace ->
+    interface -> device -> sensor -> resolution proof."""
     __tablename__ = "attachment"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     case_id: Mapped[int] = mapped_column(ForeignKey("case_tbl.id"))
@@ -178,6 +188,10 @@ class Attachment(Base):
     uploaded_by: Mapped[str] = mapped_column(String(200), default="")
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_default)
     note: Mapped[str] = mapped_column(Text, default="")
+    thread_seq: Mapped[int] = mapped_column(Integer, default=1)
+    reply_to_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    evidence_kind: Mapped[str] = mapped_column(String(30), default="other")
+    is_resolution_evidence: Mapped[bool] = mapped_column(Boolean, default=False)
 
 class MaintenanceWindow(Base):
     __tablename__ = "maintenance_window"
@@ -288,8 +302,34 @@ ESCALATION_LEVELS = {
     "L1": "Level 1 Support — first-line: initial checks, link status, ping tests, ticket logging.",
     "L2": "Level 2 Support — advanced technical: VLAN/interface checks, MAC learning, routing, packet loss, config.",
     "L3": "Level 3 Support — senior/network specialists: core equipment, routing protocols, major outages.",
-    "Vendor": "External provider path — third-party fibre route, equipment or expertise (separate path, not above L3).",
+    "Vendor": "External provider path — third-party fibre/equipment/expertise (separate path, not above L3).",
 }
+
+# Short forms used in the handover text (MCQ Q15=C: "L2 (advanced technical)").
+ESCALATION_LEVELS_SHORT = {
+    "L1": "first-line", "L2": "advanced technical",
+    "L3": "senior", "Vendor": "third-party",
+}
+
+# Evidence kinds for the media thread (kind, human label) — the categories the
+# team said every update should be able to attach.
+EVIDENCE_KINDS = {
+    "location": "Physical location (site photo, cabinet, GPS)",
+    "trace": "Fibre trace (OTDR .sor, splice/connector shots)",
+    "interface": "Interface status (physical port, light levels)",
+    "smartolt": "SmartOLT device (ONU/OLT screen, port state)",
+    "prtg": "PRTG sensor (graph, channel, utilisation)",
+    "resolution": "Resolution proof (utilisation graph, interface pic, learn-MAC)",
+    "other": "Other evidence",
+}
+
+
+def level_label(level: str) -> str:
+    """'L2' -> 'L2 (advanced technical)'; '' -> ''."""
+    if not level:
+        return ""
+    short = ESCALATION_LEVELS_SHORT.get(level)
+    return f"{level} ({short})" if short else level
 
 class HandoverImport(Base):
     """A pasted WhatsApp handover kept for audit + day-over-day update diffing."""

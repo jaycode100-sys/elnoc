@@ -81,10 +81,21 @@ def ensure_columns() -> None:
             conn.exec_driver_sql(
                 "ALTER TABLE case_tbl ADD COLUMN escalation_level VARCHAR(20) DEFAULT ''")
         for name, ddl in (("phoenix_ticket_opened_at", "TIMESTAMP"),
-                          ("restored_at", "TIMESTAMP")):
+                          ("restored_at", "TIMESTAMP"),
+                          ("resolution_challenged_at", "TIMESTAMP"),
+                          ("last_contact_attempt_at", "TIMESTAMP"),
+                          ("outage_start", "TIMESTAMP")):
             if name not in cols:
                 conn.exec_driver_sql(
                     f"ALTER TABLE case_tbl ADD COLUMN {name} {ddl}")
+        acols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(attachment)")]
+        for name, ddl in (("thread_seq", "INTEGER DEFAULT 1"),
+                          ("reply_to_id", "INTEGER"),
+                          ("evidence_kind", "VARCHAR(30) DEFAULT 'other'"),
+                          ("is_resolution_evidence", "INTEGER DEFAULT 0")):
+            if name not in acols:
+                conn.exec_driver_sql(
+                    f"ALTER TABLE attachment ADD COLUMN {name} {ddl}")
 
 def get_db():
     db = SessionLocal()

@@ -10,6 +10,7 @@ from ..models import Case, Link, Customer, Handover, CaseEvent, CaseLink, Handov
 from ..security import get_current_user, find_secret
 from ..services.handover import build_handover_text, group_by_waiting_party
 from ..services.handover_parse import parse_handover, extract_party
+from ..services.handover_gate import check as gate_check, apply_override
 from ..services.update_watch import watch_updates, flag_text, normalize_update
 from ..services.search import search_links
 from ..utils_time import utcnow, fmt_date, ensure_utc
@@ -56,15 +57,24 @@ def create_handover(request: Request, shift: str = Form("day"),
                     from_engineer: str = Form(""), free_notes: str = Form(""),
                     show_wait_age: str = Form(""), summary: str = Form(""),
                     to_engineer: str = Form(""), restored_hours: str = Form("12"),
+                    override: str = Form(""), override_reason: str = Form(""),
                     user=Depends(get_current_user), db: Session = Depends(get_db)):
     cases = db.query(Case).filter(Case.status != "resolved").order_by(Case.opened_at).all()
     _attach(db, cases)
-    # include this shift's closed too (FR-40)
     closed = db.query(Case).filter(Case.status == "resolved")\
         .order_by(Case.closed_at.desc()).limit(20).all()
     _attach(db, closed)
     all_cases = cases + [c for c in closed
                          if c.closed_at and (utcnow() - ensure_utc(c.closed_at)).days == 0]
+
+    # Gate: missing Phoenix ticket blocks; nobody named is flagged (both YES)
+    gate = gate_check(db, all_cases)
+    if gate["blocks"] and not (override and override_reason.strip()):
+        return templates.TemplateResponse(request, "handover.html", {
+            "user": user, "cases": cases, "groups": group_by_waiting_party(cases),
+            "handovers": db.query(Handover).order_by(Handover.id.desc()).limit(10).all(),
+            "today": fmt_date(utcnow()), "gate": gate})
+
     try:
         window = max(1, int(restored_hours or 12))
     except ValueError:
@@ -76,14 +86,17 @@ def create_handover(request: Request, shift: str = Form("day"),
                                to_engineer=to_engineer,
                                restored_hours=window)
     if free_notes.strip():
-        text += f"\nNOTES\n{free_notes.strip()}\n"
+        text += f"\nNOTES\n{free_notes.strip()}\n"   # Q22=A
     h = Handover(shift_date=fmt_date(utcnow()), shift=shift,
                  from_engineer=from_engineer or user.username,
                  to_engineer=to_engineer,
                  open_case_ids=json.dumps([c.id for c in cases]),
                  free_notes=free_notes)
-    db.add(h); db.commit()
-    # stash text on object for redirect page
+    db.add(h)
+    db.flush()
+    if gate["blocks"]:
+        apply_override(db, all_cases, override_reason.strip(), user.username)
+    db.commit()
     return RedirectResponse(url=f"/handover/{h.id}", status_code=303)
 
 @router.get("/handover/{hid:int}", response_class=HTMLResponse)

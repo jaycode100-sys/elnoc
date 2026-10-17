@@ -47,22 +47,34 @@ def test_stale_wait_exact_boundary():
     assert is_stale_wait(c3) is False
 
 def test_handover_exact_format():
+    """Configured layout (MCQ answers, Oct 2026): summary first, unresolved
+    sub-headed by state, NOTE: lines, durations, one divider before summary."""
     c1 = Case(id=101, status="waiting_other_team", link_state="down",
-              waiting_on="OREGUN TEAM", symptom="x", opened_at=utcnow())
+              waiting_on="OREGUN TEAM", symptom="x", opened_at=utcnow() - timedelta(hours=3))
     c1._link_name = "LTV8 Ikeja-RC"; c1._latest_note = "far end dark"; c1._affected = []
-    c2 = Case(id=102, status="open", link_state="degraded", waiting_on="",
-              symptom="flap", opened_at=utcnow())
+    c2 = Case(id=102, status="open", link_state="degraded", waiting_on="PREC PEARL TEAM",
+              symptom="flap", opened_at=utcnow() - timedelta(minutes=5))
     c2._link_name = "Demo Bank HQ"; c2._latest_note = "flapping"; c2._affected = ["LTV8 Backup"]
     c3 = Case(id=103, status="resolved", link_state="up", waiting_on="", symptom="x",
-              opened_at=utcnow())
+              opened_at=utcnow() - timedelta(hours=2),
+              restored_at=utcnow() - timedelta(minutes=30))
     c3._link_name = "Prec Pearl Main"; c3._latest_note = ""; c3._affected = []
-    text = build_handover_text([c1, c2, c3], "11/10/2026")
-    assert text.startswith("TICKET UPDATES \u2013 11/10/2026")
-    assert "UNRESOLVED LINKS" in text and "RESOLVED LINKS" in text
-    assert "LTV8 IKEJA-RC\nSTATUS: DOWN\nUPDATE: FOLLOWING UP WITH OREGUN TEAM | far end dark" in text
+    text = build_handover_text([c1, c2, c3], "16/10/2026", from_engineer="Day Eng")
+    # header (Q1=B)
+    assert text.startswith("NOC HANDOVER \u2013 16/10/2026")
+    # summary before links (Q2=B)
+    assert text.index("SHIFT SUMMARY") < text.index("UNRESOLVED LINKS")
+    assert "ON SHIFT DUTY: DAY ENG" in text
+    # state sub-headers (Q3 note)
+    assert "DOWN (1)" in text and "DEGRADED (1)" in text
+    # duration beside the incident, long form (Q3 note + Q14=B)
+    assert "LTV8 IKEJA-RC (3H 0M)" in text
+    # UPDATE carries the party; the second fact gets its own NOTE line (Q20=C)
+    assert "LTV8 IKEJA-RC (3H 0M)\nSTATUS: DOWN\nUPDATE: FOLLOWING UP WITH OREGUN TEAM\nNOTE: far end dark" in text
     assert "LINKS AFFECTED\nLTV8 BACKUP" in text
-    assert "PREC PEARL MAIN\nSTATUS: UP" in text
-    assert "-------------------------------------------------" in text
+    assert "PREC PEARL MAIN (1H 30M)\nSTATUS: UP" in text  # opened 2h ago, up 90m
+    # exactly one divider, before the summary (Q23=B)
+    assert text.count("-------------------------------------------------") == 1
 
 def test_secret_block():
     assert find_secret("password: hunter2") is not None

@@ -248,15 +248,21 @@ A link is **UNSTABLE** when any of these is true:
 
 ---
 
-## Ready-to-copy answer sheet
+## Answer sheet
 
 ```
-Q1=  Q2=  Q3=  Q4=  Q5=  Q6=  Q7=  Q8=  Q9=  Q10=
-Q11= Q12= Q13= Q14= Q15= Q16= Q17= Q18= Q19= Q20=
-Q21= Q22= Q23= Q24= Q25= Q26= Q27= Q28= Q29= Q30=
+Q1=B  Q2=B
+Q3=A (possibly keep sub-headers within the handover based on UNRESOLVED options (down, degraded, unstable) to divide the ticket updates from each other. Also, put the duration of current outage (since that particular incident occurred) beside the incident in the ticket (in hh:mm)
+Q4=C  Q5=C (give tip on both causes, and challenge the officer on duty to clearly find out and choose between DEGRADED->Link is up but carrying errors/loss above threshold and UNSTABLE->Flapping: link cycles up/down, or monitoring shows repeated state changes)
+Q6=A  Q7=A  Q8=A  Q9=A  Q10=A
+Q11=A Q12=A Q13=A Q14=B Q15=C Q16=A Q17=A Q18=A Q19=A Q20=C
+Q21=B Q22=A Q23=B Q24=A Q25=A Q26=A Q27=A Q28=A Q29=A Q30=A
 
 Also:
-- Should B5 ticket-open be enforced by ELNOC blocking handover?  Y / N
-- Should an unresolved link with no waiting party be auto-flagged at handover?  Y / N
-- Retention: keep handover text forever, or 12 months?  ___
+- Should B5 ticket-open be enforced by ELNOC blocking handover?  Y
+- Should an unresolved link with no waiting party be auto-flagged at handover?  Y
+- Retention: keep handover text forever, or 12 months?  12 months
+
+ADD OPTIONAL (BUT ADVISED) MEDIA UPLOAD FOR ALL LINKS. KEEP THE UPLOADS AS A THREAD. SO, ANY UPDATE INVOLVING POF PHYSICAL LOCATION, FIBRE TRACE, INTERFACE STATUS, DEVICE ON SMARTOLT, PRTG SENSOR IS TRACKED EFFECTIVELY. ONCE A TICKET IS 'UP', CHALLENGE THE ENGINEER TO ADD MEDIA EVIDENCE OF RESOLUTION (EITHER THE PRTG UTILISATION GRAPH, ONU UTILISATION, PHYICAL INTERFACE PICTURE, LEARN-MAC PICTURE, AMONG OTHERS.
+
 ```
