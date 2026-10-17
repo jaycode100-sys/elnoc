@@ -15,9 +15,12 @@
 <div class="card"><h2>⇄ Builder</h2>
 <form method="post" action="/handover">
 <div class="formrow"><div><label>Shift</label><select name="shift"><option>day</option><option>night</option></select></div>
-<div><label>From engineer</label><input name="from_engineer" value="{{ user.username }}"></div></div><br>
+<div><label>From engineer (on shift duty)</label><input name="from_engineer" value="{{ user.username }}"></div></div><br>
+<div class="formrow"><div><label>Incoming engineer</label><input name="to_engineer" placeholder="e.g. Night Engineer"></div>
+<div><label>Restoration window (hours)</label><input name="restored_hours" value="12"></div></div><br>
 <label>Free notes</label><textarea name="free_notes" placeholder="Anything the next shift must feel, not just read…"></textarea><br>
-<label style="display:flex; gap:8px; align-items:center"><input type="checkbox" name="show_wait_age" style="width:auto"> append wait-age (off = exact team style)</label><br>
+<label style="display:flex; gap:8px; align-items:center"><input type="checkbox" name="summary" checked style="width:auto"> append detailed SHIFT SUMMARY (tally · duty · restoration)</label><br>
+<label style="display:flex; gap:8px; align-items:center"><input type="checkbox" name="show_wait_age" style="width:auto"> append per-link wait-age (off = exact team style)</label><br>
 <button type="submit">Generate handover</button></form></div>
 <div class="card"><h2>⬆ Import WhatsApp text</h2>
 <p class="muted" style="margin-top:0">Paste today's Daily Handover — ELNOC parses every entry, matches links, diffs updates, and <b>questions anything unchanged 12h+</b> before applying.</p>

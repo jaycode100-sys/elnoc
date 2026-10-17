@@ -12,7 +12,8 @@
 <a href="/handover/{{ h.id }}">clean team style</a> ·
 <a href="/handover/{{ h.id }}?stale=1">+ question stale updates</a> ·
 <a href="/handover/{{ h.id }}?notes=1">+ resolved notes</a> ·
-<a href="/handover/{{ h.id }}?stale=1&notes=1">+ both</a>
+<a href="/handover/{{ h.id }}?summary=0">no SHIFT SUMMARY</a> ·
+<a href="/handover/{{ h.id }}?stale=1&notes=1">+ stale &amp; notes</a>
 {% if stale_on %}<span class="pill stale">stale flags on</span>{% endif %}
 {% if notes_on %}<span class="pill info">resolved notes on</span>{% endif %}</p></div>
 {% if questioned %}<div class="card" style="border-color:var(--warn)"><h2>◉ Question these updates</h2>

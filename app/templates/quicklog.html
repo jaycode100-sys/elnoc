@@ -32,7 +32,7 @@
 <div><label>Device (editable — came from window title)</label><input id="device2" value="{{ device }}" placeholder="PuTTY title / WinBox / IP"></div></div><br>
 <label>Symptom — one line</label><input id="symptom" placeholder="far end not transmitting, rsl low" autocomplete="off"><br><br>
 <div class="formrow"><div><label>Severity</label><select id="severity"><option>critical</option><option selected>major</option><option>minor</option><option>info</option></select></div>
-<div><label>Link state</label><select id="link_state"><option>down</option><option>degraded</option><option>up</option></select></div></div><br>
+<div><label>Link state</label><select id="link_state"><option>down</option><option>degraded</option><option>unstable</option><option>up</option></select></div></div><br>
 <div class="formrow"><div><label>Escalation level</label><select id="elevel"><option value="">— unset —</option><option>L1</option><option>L2</option><option>L3</option><option>Vendor</option></select></div>
 <div><label>&nbsp;</label><div class="muted" style="font-size:12.5px">L1 first-line · L2 advanced · L3 senior · Vendor third-party path</div></div></div><br>
 <label>Issue detected (optional — when it actually occurred; escalation time stays system-managed)</label><input id="issue_at" type="datetime-local"><br><br>

@@ -96,6 +96,7 @@ def correlate_to_case(db: Session, ev: Event, engineer: str = "auto") -> Case | 
             ev.case_id = open_case.id
             if (open_case.link_state or "").lower() != "up":
                 open_case.link_state = "up"
+                open_case.restored_at = now  # feeds handover restoration block
             db.commit()
         return open_case
 

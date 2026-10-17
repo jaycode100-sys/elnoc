@@ -80,6 +80,11 @@ def ensure_columns() -> None:
         if "escalation_level" not in cols:
             conn.exec_driver_sql(
                 "ALTER TABLE case_tbl ADD COLUMN escalation_level VARCHAR(20) DEFAULT ''")
+        for name, ddl in (("phoenix_ticket_opened_at", "TIMESTAMP"),
+                          ("restored_at", "TIMESTAMP")):
+            if name not in cols:
+                conn.exec_driver_sql(
+                    f"ALTER TABLE case_tbl ADD COLUMN {name} {ddl}")
 
 def get_db():
     db = SessionLocal()

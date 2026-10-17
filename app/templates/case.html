@@ -15,7 +15,10 @@
     <span class="pill info">link: {{ case.link_state }}</span>
     {% if case.waiting_on %}<span class="pill major">waiting: {{ case.waiting_on }}</span>{% endif %}
     {% if case.escalation_level %}<span class="pill info" title="{{ levels[case.escalation_level] }}">{{ case.escalation_level }}</span>{% endif %}
+    {% if case.phoenix_ticket_no %}<span class="pill ok" title="Phoenix ticket opened {{ case.phoenix_ticket_opened_at }} — app only, never in the handover">🎫 TICKET OPENED: {{ case.phoenix_ticket_no }}</span>
+    {% else %}<span class="pill major" title="Set the Phoenix ticket number below once the ticket exists">🎫 NO PHOENIX TICKET YET</span>{% endif %}
     <span class="pill info">Phoenix: {{ case.phoenix_ticket_no or '—' }}</span>
+    <span class="faint" style="font-size:12px">ticket numbers stay in the app — they never enter the handover text</span>
     <span style="flex:1"></span>
     <button class="btn sm" onclick="elnocCopy('phx')">⧉ Copy for Phoenix</button>
   </div>
@@ -36,9 +39,10 @@
 <form method="post" action="/cases/{{ case.id }}/status">
 <div class="formrow">
 <div><label>Workflow status</label><select name="status"><option {% if case.status=='open' %}selected{% endif %}>open</option><option {% if case.status=='escalated' %}selected{% endif %}>escalated</option><option {% if case.status=='waiting_other_team' %}selected{% endif %}>waiting_other_team</option><option>resolved</option></select></div>
-<div><label>Link state (drives handover)</label><select name="link_state"><option value="">— keep —</option><option>down</option><option>degraded</option><option>up</option></select></div>
+<div><label>Link state (drives handover)</label><select name="link_state"><option value="">— keep —</option><option>down</option><option>degraded</option><option>unstable</option><option>up</option></select></div>
 <div><label>Escalation level</label><select name="escalation_level"><option value="">— unset —</option>{% for lv, meaning in levels.items() %}<option value="{{ lv }}" {% if case.escalation_level==lv %}selected{% endif %} title="{{ meaning }}">{{ lv }}</option>{% endfor %}</select></div></div><br>
-<label>Waiting on (team / person — shows after “FOLLOWING UP WITH”)</label><input name="waiting_on" placeholder="OREGUN TEAM" value="{{ case.waiting_on }}">
+<div class="formrow"><div><label>Waiting on (team / person — shows after “FOLLOWING UP WITH”)</label><input name="waiting_on" placeholder="OREGUN TEAM" value="{{ case.waiting_on }}"></div>
+<div><label>Phoenix ticket no. — app-only, never in handover</label><input name="phoenix_ticket_no" value="{{ case.phoenix_ticket_no }}" placeholder="e.g. PHX-4821"></div></div>
 <br><button type="submit">Update case</button></form></div>
 
 <div class="card"><h2>✓ Close-out</h2><p class="muted" style="margin-top:0">All three required (FR-22) — this is what teaches the next shift.</p>

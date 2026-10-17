@@ -29,3 +29,13 @@
 10. **Rule of the UPDATE line:** an update that reads the same for 12 hours gets
     questioned; two days identical is a repeat. Add a fresh finding or chase —
     don't forward stale words.
+11. **Phoenix ticket:** enter the ticket number on the case (Status panel). The
+    app shows a green **TICKET OPENED** badge and the dashboard shows it per link —
+    **ticket numbers never appear in the handover text** (enforced by a test).
+12. **Link states:** DOWN / DEGRADED / **UNSTABLE** (flapping or intermittent) / UP.
+    UNSTABLE counts in the tally as its own line.
+13. **Detailed handover:** the SHIFT SUMMARY at the end gives the tally
+    (DOWN/DEGRADED/UNSTABLE/UP), who was on shift duty and incoming, the
+    restoration list with times, and what is still burning with ages and levels.
+14. **Team choices:** see `HANDOVER_MCQ.md` — 30 questions on how the handover
+    should look, plus the escalation detail checklist (Part B).

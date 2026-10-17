@@ -49,8 +49,13 @@ def dashboard(request: Request, user=Depends(get_current_user), db: Session = De
         c._upd_flag = flag_text(c._upd)
     failed = db.query(Notification).filter(Notification.status == "failed")\
         .order_by(Notification.id.desc()).limit(20).all()
+    # state tally for the deck's second stat row (down/degraded/unstable/up)
+    from ..services.handover import STATES, _state
+    tally = {s: 0 for s in STATES}
+    for c in cases:
+        tally[_state(c)] += 1
     return templates.TemplateResponse(request, "dashboard.html", { "user": user, "open_cases": open_cases, "waiting": waiting,
-         "shift_cases": shift_cases, "failed": failed, "total": len(cases)})
+         "shift_cases": shift_cases, "failed": failed, "total": len(cases), "tally": tally})
 
 @router.get("/api/deck-stats")
 def deck_stats(db: Session = Depends(get_db), user=Depends(get_current_user)):

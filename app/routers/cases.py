@@ -96,22 +96,33 @@ def add_note(case_id: int, text: str = Form(""), kind: str = Form("note"),
 @router.post("/cases/{case_id}/status")
 def change_status(case_id: int, status: str = Form("open"), link_state: str = Form(""),
                   waiting_on: str = Form(""), escalation_level: str = Form(""),
-                  user=Depends(get_current_user),
+                  phoenix_ticket_no: str = None, user=Depends(get_current_user),
                   db: Session = Depends(get_db)):
     case = db.get(Case, case_id)
     old = case.status
     case.status = status
     if link_state:
         case.link_state = link_state
+        # stamp restoration the moment a link is declared up (summary block)
+        if link_state == "up" and not case.restored_at:
+            case.restored_at = utcnow()
     if waiting_on is not None:
         case.waiting_on = waiting_on.strip().upper()
     if escalation_level in ("", "L1", "L2", "L3", "Vendor"):
         if escalation_level:
             case.escalation_level = escalation_level
+    # Phoenix ticket trail: app-only, never in the handover text.
+    if phoenix_ticket_no is not None:
+        new_ticket = phoenix_ticket_no.strip()
+        if new_ticket and new_ticket != (case.phoenix_ticket_no or "").strip():
+            case.phoenix_ticket_no = new_ticket
+            if not case.phoenix_ticket_opened_at:
+                case.phoenix_ticket_opened_at = utcnow()
     if status == "waiting_other_team":
         case.last_escalation_at = utcnow()
     db.add(CaseEvent(case_id=case.id, at=utcnow(), engineer=user.username, kind="status",
-                     text=f"Status {old} -> {status}; link_state={case.link_state}; waiting_on={case.waiting_on}; level={case.escalation_level}"))
+                     text=f"Status {old} -> {status}; link_state={case.link_state}; waiting_on={case.waiting_on}; level={case.escalation_level}"
+                          + (f"; Phoenix ticket {case.phoenix_ticket_no}" if case.phoenix_ticket_no else "")))
     audit(db, "case", str(case.id), user.username, f"status {old}->{status}")
     db.commit()
     return RedirectResponse(url=f"/cases/{case.id}", status_code=303)

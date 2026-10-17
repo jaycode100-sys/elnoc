@@ -103,9 +103,16 @@ class Case(Base):
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     outage_location: Mapped[str] = mapped_column(String(300), default="")
     outage_note: Mapped[str] = mapped_column(Text, default="")
-    link_state: Mapped[str] = mapped_column(String(20), default="down")  # down|degraded|up (FR-45)
+    link_state: Mapped[str] = mapped_column(String(20), default="down")  # down|degraded|unstable|up (FR-45)
     waiting_on: Mapped[str] = mapped_column(String(300), default="")
     escalation_level: Mapped[str] = mapped_column(String(20), default="")  # L1|L2|L3|Vendor
+    # Phoenix ticket trail. Shown in the app ONLY — never in handover text.
+    phoenix_ticket_opened_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    # When the link was confirmed restored — powers the handover's
+    # "current update on link restoration" block.
+    restored_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
     current_escalation_step: Mapped[int] = mapped_column(Integer, default=0)
     last_escalation_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
