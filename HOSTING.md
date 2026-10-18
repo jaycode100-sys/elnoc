@@ -11,59 +11,87 @@ survives reboots, plus Supabase Postgres + off-site backups. **Total cost: £0.*
 | Off-site backups | Supabase Storage `elnoc-backups` | £0 |
 | Domain | cedarviewng.com (already yours) | already paid for |
 
-**Good news: `cedarviewng.com` is already on Cloudflare's nameservers**
-(`ns19.qserverscloud.com`, `ns20.qservers.net`), so there is nothing to migrate
-and nothing to buy. A named tunnel + one DNS record is the whole job.
+**Cost: £0.** Cloudflare free plan + Supabase free tier (already live: Postgres
+migrated, sequences repaired, backups verified) + your own domain.
+
+### Read this first: where your DNS actually lives
+`cedarviewng.com` is **not** on Cloudflare nameservers. Its authoritative
+servers are `ns19/ns20.qservers.net`, and the apex resolves to `102.221.237.203`.
+That means `cloudflared tunnel route dns` reports "added CNAME" but writes into a
+zone the internet never queries — which is why `noc.cedarviewng.com` returns
+NXDOMAIN even though the tunnel is running.
+
+You have exactly two ways to fix it, both free:
+
+| Option | What you do | Trade-off |
+|---|---|---|
+| **A. Add one CNAME where DNS is managed today** (fastest) | In your current DNS panel (the `qservers` one / your registrar) add:<br>`noc` **CNAME** `125568ef-db85-4e44-a593-4f49a1c97c15.cfargotunnel.com` | Works in minutes. No nameserver change, nothing else on the domain moves. |
+| **B. Move the domain to Cloudflare** (better long-term) | Add cedarviewng.com to Cloudflare, then at the registrar swap the nameservers to the two `*.ns.cloudflare.com` names Cloudflare assigns. The CNAME already created goes live automatically. | Adds Cloudflare WAF/CDN and Access for free, but every other DNS record must exist in Cloudflare first. Do it deliberately. |
+
+Whichever you choose, the tunnel itself is already created and running — the
+only missing piece is DNS telling the internet where to send `noc`.
+
+Tunnel facts (yours, already created):
+- name `elnoc`, ID `125568ef-db85-4e44-a593-4f49a1c97c15`
+- credentials `C:\Users\<you>\.cloudflared\125568ef-….json`
+- config `C:\Users\<you>\.cloudflared\config.yml`
+- target for the CNAME: `125568ef-db85-4e44-a593-4f49a1c97c15.cfargotunnel.com`
 
 ---
 
-## STEP 1 — The permanent URL (10 minutes, one browser click)
+## STEP 1 — The permanent URL
 
-Prerequisites: ELNOC running locally (`tools\run_server.bat`) and
-`tools\cloudflared.exe` present (already downloaded).
+### 1a. Publish the DNS (you must do this first)
+Add the CNAME from the table above at your real DNS host, then confirm:
 
-From the repo root, in **PowerShell**:
+```powershell
+nslookup noc.cedarviewng.com 1.1.1.1     # must return the cfargotunnel target
+```
+
+### 1b. Run the tunnel
+**As Administrator** (so it can install as a Windows service and start at boot):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\setup_tunnel.ps1
 ```
 
-The script does everything except one step: a browser opens so you pick
-**cedarviewng.com** and click **Authorize**. That is the only manual click in
-the entire hosting setup. After that the script:
+The script checks login, creates the tunnel if missing, writes `config.yml`,
+attempts the DNS record, and installs **cloudflared as a Windows service** so
+the URL survives reboots.
 
-1. creates the named tunnel `elnoc` (skips if it exists),
-2. writes `C:\Users\<you>\.cloudflared\config.yml` routing
-   `noc.cedarviewng.com` → `http://127.0.0.1:8000`,
-3. creates the DNS record for that hostname,
-4. installs **cloudflared as a Windows service** — it starts with Windows and
-   restarts if it dies, so the URL survives reboots and crashes.
+**No admin rights?** The script falls back to a logon scheduled task instead
+(starts when you sign in, which is enough for a NOC machine that is always
+signed in). To get boot-persistence without admin, run Task Scheduler →
+Create Task → **"Run whether user is logged on or not"** → trigger *At startup*
+→ program `tools\cloudflared.exe`, arguments `tunnel run elnoc`, start in the
+repo folder.
 
-### Then two 30-second steps
-1. In `.env`, set:
-   ```
-   ELNOC_BASE_URL=https://noc.cedarviewng.com
-   ```
-   and restart the ELNOC server. (This is what makes WhatsApp acknowledge
-   links resolve on a phone outside the LAN.)
-2. Verify:
-   ```
-   https://noc.cedarviewng.com/health   ->  {"ok":true,"app":"ELNOC"}
-   https://noc.cedarviewng.com/         ->  landing page
-   ```
+### 1c. Point ELNOC at the permanent URL
+In `.env`:
+```
+ELNOC_BASE_URL=https://noc.cedarviewng.com
+```
+Restart the server. (This is what makes WhatsApp acknowledge links resolve on a
+phone outside the LAN.)
+
+### 1d. Verify
+```
+https://noc.cedarviewng.com/health   ->  {"ok":true,"app":"ELNOC"}
+https://noc.cedarviewng.com/         ->  landing page
+```
 
 ### Want it on the root domain instead?
-`noc.cedarviewng.com` is recommended (it leaves the apex free for marketing).
-If you'd rather have `cedarviewng.com` itself, re-run with
-`-Hostname cedarviewng.com`.
+`noc.cedarviewng.com` is recommended (leaves the apex free). For the apex, use
+`-Hostname cedarviewng.com` and add the CNAME for `cedarviewng.com` instead.
 
-### Doing it by hand (if you prefer)
+### Doing it by hand
 ```powershell
 tools\cloudflared.exe tunnel login
 tools\cloudflared.exe tunnel create elnoc
 tools\cloudflared.exe tunnel route dns elnoc noc.cedarviewng.com
 notepad %USERPROFILE%\.cloudflared\config.yml     # paste the block below
-tools\cloudflared.exe service install
+tools\cloudflared.exe service install             # Administrator only
+tools\cloudflared.exe tunnel run elnoc            # or just run it
 ```
 ```yaml
 tunnel: <UUID from create>
