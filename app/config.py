@@ -46,8 +46,12 @@ class Settings:
     # Pre-5.4 servers have no API tokens: user.login fallback instead.
     ZABBIX_USER: str = os.getenv("ZABBIX_USER", "")
     ZABBIX_PASSWORD: str = os.getenv("ZABBIX_PASSWORD", "")
+    # Full base, including your tenant: https://<subdomain>.smartolt.com
     SMARTOLT_BASE_URL: str = os.getenv("SMARTOLT_BASE_URL", "")
+    # Sent as the X-Token header (not Bearer). SmartOLT > General > API key.
     SMARTOLT_API_KEY: str = os.getenv("SMARTOLT_API_KEY", "")
+    # Incremental window for get_onus_statuses; blank = full scan.
+    SMARTOLT_STATUS_SINCE: str = os.getenv("SMARTOLT_STATUS_SINCE", "")
 
     MAIL_IMAP_HOST: str = os.getenv("MAIL_IMAP_HOST", "")
     MAIL_IMAP_USER: str = os.getenv("MAIL_IMAP_USER", "")
