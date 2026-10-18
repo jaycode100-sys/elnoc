@@ -14,22 +14,50 @@ survives reboots, plus Supabase Postgres + off-site backups. **Total cost: £0.*
 **Cost: £0.** Cloudflare free plan + Supabase free tier (already live: Postgres
 migrated, sequences repaired, backups verified) + your own domain.
 
-### Read this first: where your DNS actually lives
-`cedarviewng.com` is **not** on Cloudflare nameservers. Its authoritative
-servers are `ns19/ns20.qservers.net`, and the apex resolves to `102.221.237.203`.
-That means `cloudflared tunnel route dns` reports "added CNAME" but writes into a
-zone the internet never queries — which is why `noc.cedarviewng.com` returns
-NXDOMAIN even though the tunnel is running.
+### Read this first: who holds your DNS (checked 18 Oct 2026)
 
-You have exactly two ways to fix it, both free:
+`cedarviewng.com` is **not on Cloudflare** and **not under your control**:
 
-| Option | What you do | Trade-off |
-|---|---|---|
-| **A. Add one CNAME where DNS is managed today** (fastest) | In your current DNS panel (the `qservers` one / your registrar) add:<br>`noc` **CNAME** `125568ef-db85-4e44-a593-4f49a1c97c15.cfargotunnel.com` | Works in minutes. No nameserver change, nothing else on the domain moves. |
-| **B. Move the domain to Cloudflare** (better long-term) | Add cedarviewng.com to Cloudflare, then at the registrar swap the nameservers to the two `*.ns.cloudflare.com` names Cloudflare assigns. The CNAME already created goes live automatically. | Adds Cloudflare WAF/CDN and Access for free, but every other DNS record must exist in Cloudflare first. Do it deliberately. |
+- nameservers `NS19/NS20.QSERVERS.NET` (a third-party host, 208.75.151.204)
+- domain status: `clientUpdateProhibited`, `clientDeleteProhibited`,
+  `clientTransferProhibited`, `clientRenewProhibited` — **registrar-locked**
+  (normal for Nigerian .ng domains; it also blocks a nameserver move to
+  Cloudflare)
+- mail is Google Workspace (`MX smtp.google.com`), so whoever administers that
+  Workspace is the person with domain-level access
 
-Whichever you choose, the tunnel itself is already created and running — the
-only missing piece is DNS telling the internet where to send `noc`.
+Consequence: `cloudflared tunnel route dns` reports success but writes into a
+zone the internet never queries, so `noc.cedarviewng.com` is NXDOMAIN. **You
+cannot publish that name without the domain admin.** The tunnel itself is fine —
+it is running and already verified.
+
+### What you can use today
+A Cloudflare quick tunnel gives a working URL immediately (no DNS, no cost):
+```
+tools\cloudflared.exe tunnel --url http://127.0.0.1:8000
+```
+The address changes each time it restarts, which is why we want a permanent one.
+
+### Three routes to a permanent URL
+
+| # | Route | What it needs | Notes |
+|---|---|---|---|
+| **1** | **Ask the domain admin** (the Google Workspace admin, or whoever holds the qservers account) to add one record | A message with the record to paste (below) | Cleanest. Nothing else on the domain changes. |
+| **2** | **Free DNS you control** — e.g. an account at a free-DNS provider (afraid.org FreeDNS supports CNAME) | ~10 minutes, no card | CNAME it to `125568ef-….cfargotunnel.com`. Free tiers usually need a periodic confirmation click to stay active. |
+| **3** | **Stay on the quick tunnel** and restart it automatically | Task Scheduler, no admin | Always works, URL changes per restart. |
+
+#### The exact record to send to the domain admin
+```
+Type:  CNAME
+Name:  noc
+Value: 125568ef-db85-4e44-a593-4f49a1c97c15.cfargotunnel.com
+TTL:   Auto
+```
+Then `https://noc.cedarviewng.com` works, and set
+`ELNOC_BASE_URL=https://noc.cedarviewng.com` in `.env`.
+
+Because the public hostname may end up being *any* of those three, the tunnel
+config uses a catch-all so every hostname pointed at it reaches ELNOC:
 
 Tunnel facts (yours, already created):
 - name `elnoc`, ID `125568ef-db85-4e44-a593-4f49a1c97c15`
