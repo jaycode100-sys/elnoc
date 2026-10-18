@@ -4,11 +4,14 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pathlib import Path
-import json, csv, io
+import json, csv, io, urllib.parse
 from ..database import get_db
 from ..models import Case, Link, Customer, Handover, CaseEvent, CaseLink, HandoverImport
 from ..security import get_current_user, find_secret
 from ..services.handover import build_handover_text, group_by_waiting_party
+from ..services.handover_teams import build_team_breakdown, render_team_block
+from ..services.contacts import compact_reach
+from ..config import settings
 from ..services.handover_parse import parse_handover, extract_party
 from ..services.handover_gate import check as gate_check, apply_override
 from ..services.update_watch import watch_updates, flag_text, normalize_update
@@ -137,6 +140,71 @@ def handover_txt(hid: int, request: Request, user=Depends(get_current_user), db:
     if h.free_notes.strip():
         text += f"\nNOTES\n{h.free_notes.strip()}\n"
     return text
+
+def _team_context(db, hid: int):
+    """Handover + its cases + the links/contacts the team split needs."""
+    h = db.get(Handover, hid)
+    ids = json.loads(h.open_case_ids or "[]")
+    cases = [db.get(Case, i) for i in ids if db.get(Case, i)]
+    cases = [c for c in cases if c]
+    _attach(db, cases)
+    links = {l.id: l for l in db.query(Link).all()}
+    contacts = {}
+    for l in db.query(Link).all():
+        contacts[l.id] = compact_reach(db, l)
+    return h, cases, links, contacts
+
+
+@router.get("/handover/{hid:int}/teams", response_class=HTMLResponse)
+def handover_teams(hid: int, request: Request, user=Depends(get_current_user),
+                   db: Session = Depends(get_db)):
+    """Resolve INTO teams — dropdown of desks, with each desk's links listed."""
+    h, cases, links, contacts = _team_context(db, hid)
+    include_resolved = request.query_params.get("resolved") == "1"
+    bd = build_team_breakdown(cases, links, contacts,
+                              include_resolved=include_resolved)
+    qp = request.query_params
+    # no ?team= -> show the first desk; ?team=all -> everything at once
+    chosen = qp.get("team") or (bd["order"][0] if bd["order"] else "")
+    blocks = {}
+    if chosen.lower() == "all":
+        for g in bd["teams"]:
+            blocks[g["team"]] = render_team_block(
+                g["team"], g["entries"],
+                {"now": utcnow(), "handover_id": h.id, "shift_date": h.shift_date,
+                 "shift": h.shift, "base_url": settings.BASE_URL})
+        shown = None
+    else:
+        g = next((x for x in bd["teams"] if x["team"] == chosen), None)
+        shown = g
+        if g:
+            blocks[g["team"]] = render_team_block(
+                g["team"], g["entries"],
+                {"now": utcnow(), "handover_id": h.id, "shift_date": h.shift_date,
+                 "shift": h.shift, "base_url": settings.BASE_URL})
+    return templates.TemplateResponse(request, "handover_teams.html", {
+        "user": user, "h": h, "breakdown": bd, "chosen": chosen, "shown": shown,
+        "blocks": blocks, "resolved_on": include_resolved,
+        "teams_all": [{"team": t, "count": len(blocks[t])} for t in bd["order"]],
+    })
+
+
+@router.get("/handover/{hid:int}/teams/{team}/txt", response_class=PlainTextResponse)
+def handover_team_txt(hid: int, team: str, user=Depends(get_current_user),
+                      db: Session = Depends(get_db)):
+    h, cases, links, contacts = _team_context(db, hid)
+    key = urllib.parse.unquote(team).upper()
+    bd = build_team_breakdown(cases, links, contacts)
+    g = next((x for x in bd["teams"] if x["team"] == key), None)
+    if not g:
+        return PlainTextResponse(
+            f"No desk called '{key}' in handover #{hid}. "
+            f"Known: {', '.join(bd['order']) or 'none'}", status_code=404)
+    return render_team_block(
+        g["team"], g["entries"],
+        {"now": utcnow(), "handover_id": h.id, "shift_date": h.shift_date,
+         "shift": h.shift, "base_url": settings.BASE_URL})
+
 
 @router.post("/handover/{hid:int}/ack")
 def ack_handover(hid: int, name: str = Form(""), user=Depends(get_current_user),

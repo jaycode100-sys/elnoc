@@ -1,0 +1,52 @@
+{% extends "base.html" %}{% block title %}Handover #{{ h.id }} — by team{% endblock %}
+{% block pagetitle %}Handover #{{ h.id }} · resolved into teams{% endblock %}
+{% block pagesub %}Pick a desk. Each block is paste-ready for that team’s group and is headed as a direct peek into the handover.{% endblock %}
+{% block body %}
+<div class="card">
+  <h2>▤ Resolve INTO teams</h2>
+  <p class="muted" style="margin-top:0">{{ breakdown.total }} open link{{ '' if breakdown.total == 1 else 's' }} across {{ breakdown.teams|length }} desk{{ '' if breakdown.teams|length == 1 else 's' }}. Nothing is sent anywhere — you copy, you paste.</p>
+  <form method="get" action="/handover/{{ h.id }}/teams" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+    <label for="team">Team / desk</label>
+    <select name="team" id="team" onchange="this.form.submit()" style="min-width:260px">
+      {% for g in breakdown.teams %}
+      <option value="{{ g.team }}" {% if chosen == g.team %}selected{% endif %}>{{ g.team }} — {{ g.count }} link{{ '' if g.count == 1 else 's' }}</option>
+      {% endfor %}
+      {% if breakdown.teams %}<option value="all" {% if chosen == 'all' %}selected{% endif %}>— every team at once —</option>{% endif %}
+    </select>
+    <label style="display:flex; gap:6px; align-items:center"><input type="checkbox" name="resolved" value="1" {% if resolved_on %}checked{% endif %} onchange="this.form.submit()"> include restored</label>
+  </form>
+</div>
+
+{% if not breakdown.teams %}
+<div class="card"><h2>All clear</h2><p class="muted" style="margin:0">No open links in handover #{{ h.id }} — there is nothing to hand to a team.</p></div>
+{% endif %}
+
+{% for team, text in blocks.items() %}
+<div class="card" id="team-{{ loop.index }}">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap">
+    <h2 style="margin:0">◉ {{ team }}</h2>
+    <div style="display:flex; gap:8px">
+      <button onclick="elnocCopy('bl{{ loop.index }})">⧉ Copy for team group</button>
+      <a class="btn ghost" href="/handover/{{ h.id }}/teams/{{ team|urlencode }}/txt">Plain .txt</a>
+    </div>
+  </div>
+  <p class="muted" style="font-size:13px; margin:6px 0 0">Header states this is a direct peek into handover #{{ h.id }}, so the team knows it is their slice and not the whole shift.</p>
+  <pre class="wa" id="bl{{ loop.index }}">{{ text }}</pre>
+</div>
+{% endfor %}
+
+{% if breakdown.teams %}
+<div class="card"><h2>▤ Links on each desk</h2>
+<table>
+<tr><th>Team / desk</th><th>Links</th><th>Worst state</th></tr>
+{% for g in breakdown.teams %}
+<tr>
+  <td><a href="/handover/{{ h.id }}/teams?team={{ g.team|urlencode }}{% if resolved_on %}&amp;resolved=1{% endif %}"><b>{{ g.team }}</b></a></td>
+  <td>{{ g.count }}</td>
+  <td>{% for e in g.entries[:6] %}<div><a href="/cases/{{ e.case_id }}">{{ e.link }}</a> <span class="pill {{ 'down' if e.state == 'down' else 'degraded' if e.state == 'degraded' else 'unstable' if e.state == 'unstable' else 'ok' }}">{{ e.state_label }}</span> <span class="muted">{{ e.duration }}{% if e.level %} · {{ e.level }}{% endif %}</span></div>{% endfor %}{% if g.count > 6 %}<div class="muted">…and {{ g.count - 6 }} more</div>{% endif %}</td>
+</tr>
+{% endfor %}
+</table></div>
+{% endif %}
+<p class="muted" style="font-size:13px"><a href="/handover/{{ h.id }}">← back to the full handover</a></p>
+{% endblock %}
