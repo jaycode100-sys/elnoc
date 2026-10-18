@@ -43,21 +43,40 @@ The address changes each time it restarts, which is why we want a permanent one.
 | # | Route | What it needs | Notes |
 |---|---|---|---|
 | **1** | **Ask the domain admin** (the Google Workspace admin, or whoever holds the qservers account) to add one record | A message with the record to paste (below) | Cleanest. Nothing else on the domain changes. |
-| **2** | **Free DNS you control** — e.g. an account at a free-DNS provider (afraid.org FreeDNS supports CNAME) | ~10 minutes, no card | CNAME it to `125568ef-….cfargotunnel.com`. Free tiers usually need a periodic confirmation click to stay active. |
+| **2** | **Free DNS you control** — FreeDNS (freedns.afraid.org) gives free subdomains and supports CNAME | ~10 minutes, no card, no one else's help | The only fully self-serve route. Free tier wants a ~monthly confirmation click. |
 | **3** | **Stay on the quick tunnel** and restart it automatically | Task Scheduler, no admin | Always works, URL changes per restart. |
 
-#### The exact record to send to the domain admin
-```
-Type:  CNAME
-Name:  noc
-Value: 125568ef-db85-4e44-a593-4f49a1c97c15.cfargotunnel.com
-TTL:   Auto
-```
-Then `https://noc.cedarviewng.com` works, and set
-`ELNOC_BASE_URL=https://noc.cedarviewng.com` in `.env`.
+#### Route 2 — a free domain name you control yourself (recommended if no one holds cedarviewng.com)
 
-Because the public hostname may end up being *any* of those three, the tunnel
-config uses a catch-all so every hostname pointed at it reaches ELNOC:
+FreeDNS (`freedns.afraid.org`) gives free subdomains, supports **CNAME**, needs
+no card, and applies changes instantly. This is the only route that needs
+nothing from anyone else.
+
+1. Sign up at `freedns.afraid.org` (email + password, free).
+2. Open the **Subdomains** tab. You are given free hostnames from a shared
+   registry; pick one and note it, e.g. `elnoc` on their shared domain.
+3. Edit that entry: **Type = C (CNAME)**, **Destination** = the value below.
+4. Save. It resolves immediately.
+
+Get the value any time with:
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\get_tunnel_target.ps1
+```
+```
+Type:        CNAME  (shown as "C" in their UI)
+Destination: 125568ef-db85-4e44-a593-4f49a1c97c15.cfargotunnel.com
+```
+5. Your public URL is then `https://<that-hostname>/`. Test `/health`.
+6. Put it in `.env` as `ELNOC_BASE_URL=https://<that-hostname>` and restart,
+   so WhatsApp acknowledge links use it.
+
+**Honest caveat:** the free tier expects a periodic confirmation (roughly
+monthly) to stop abandoned subdomains being reclaimed. Keep the account email
+current; it is a ten-second click once a month.
+
+This works because the tunnel config uses a catch-all: any hostname pointed at
+the tunnel reaches ELNOC, so it does not matter that the name is not
+`cedarviewng.com`.
 
 Tunnel facts (yours, already created):
 - name `elnoc`, ID `125568ef-db85-4e44-a593-4f49a1c97c15`
