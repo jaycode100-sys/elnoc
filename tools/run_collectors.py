@@ -9,11 +9,12 @@ sys.path.insert(0, ".")
 from pathlib import Path
 from app.database import init_db, SessionLocal
 from app.adapters import prtg, zabbix, smartolt, mailbox
+from app.config import settings
 from app.services.ingestion import ingest_events
 from app.services.heartbeat import record_run
 from app.services.escalation import due_for_next_step, steps_for_case
 from app.notify.dispatcher import notify_case, retry_failed
-from app.models import Case, Link, Customer
+from app.models import Case, Link, Customer, CollectorRun
 
 LOCK = Path("data/collectors.lock")
 
@@ -35,6 +36,13 @@ def main(dry_run: bool = False):
         return
     try:
         db = SessionLocal()
+        # SmartOLT: poll only what changed since our last good run, so a big
+        # estate does not re-report the whole fleet every 5 minutes.
+        if not settings.SMARTOLT_STATUS_SINCE:
+            prev = db.get(CollectorRun, "SMARTOLT")
+            if prev and prev.last_run_at:
+                smartolt.settings.SMARTOLT_STATUS_SINCE = prev.last_run_at.strftime(
+                    "%Y-%m-%d %H:%M:%S")
         for source, fn in [("PRTG", prtg.collect_prtg), ("ZABBIX", zabbix.collect_zabbix),
                            ("SMARTOLT", smartolt.collect_smartolt), ("MAILBOX", mailbox.collect_mailbox)]:
             try:

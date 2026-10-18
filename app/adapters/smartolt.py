@@ -49,6 +49,15 @@ class SmartOltError(RuntimeError):
     pass
 
 
+def _flag(value, default: bool = False) -> bool:
+    """Env flags arrive as strings; '0'/'false'/'no'/'' must all read as OFF."""
+    if value is None or value == "":
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() not in ("0", "false", "no", "off", "none")
+
+
 def _request(path: str, params: dict | None = None, timeout: int = 30) -> dict:
     base = settings.SMARTOLT_BASE_URL.rstrip("/")
     if not base or not settings.SMARTOLT_API_KEY:
@@ -143,23 +152,54 @@ def collect_smartolt(fetcher=None) -> list[RawEvent]:
                 raw=json.dumps(p)[:2000]))
 
     # ---- 2. ONU state changes (incremental)
+    # A full SmartOLT inventory scan returns EVERY currently-offline ONU. On a
+    # real estate that is ~1000+ rows and would open ~1000 NOC cases on one
+    # poll. Off by default: per-ONU tickets only when SMARTOLT_ONU_ALERTS=1,
+    # otherwise fold the fleet into one summary per zone so the NOC sees the
+    # shape of the problem without being buried.
     since = settings.SMARTOLT_STATUS_SINCE or ""
     body = _request("/api/onu/get_onus_statuses", {"status_changed_after": since})
-    for o in _items(body):
-        state = str(o.get("status", "")).strip().lower()
-        if not state or state in ONLINE_STATES:
-            continue
-        dev = (str(o.get("unique_external_id") or o.get("sn") or "")
-               or f"{_olt_label(o, names)} ONU-{o.get('onu', '?')}")
-        events.append(RawEvent(
-            source="SMARTOLT", etype="onu", device=dev.strip(),
-            summary=(f"ONU {state}: {dev}"
-                    + (f" (SN {o.get('sn')})" if o.get("sn") else "")
-                    + (f" zone {o.get('zone_id')}" if o.get("zone_id") else ""))[:400],
-            severity=ONU_STATE_SEVERITY.get(state, "major"),
-            occurred_at=utcnow(),
-            ref=str(o.get("sn", "")),
-            raw=json.dumps(o)[:2000]))
+    offline = [o for o in _items(body)
+               if str(o.get("status", "")).strip().lower() not in ONLINE_STATES
+               and str(o.get("status", "")).strip()]
+    if _flag(settings.SMARTOLT_ONU_ALERTS, default=False):
+        for o in offline:
+            state = str(o.get("status", "")).strip().lower()
+            dev = (str(o.get("unique_external_id") or o.get("sn") or "")
+                   or f"{_olt_label(o, names)} ONU-{o.get('onu', '?')}")
+            events.append(RawEvent(
+                source="SMARTOLT", etype="onu", device=dev.strip(),
+                summary=(f"ONU {state}: {dev}"
+                         + (f" (SN {o.get('sn')})" if o.get("sn") else "")
+                         + (f" zone {o.get('zone_id')}" if o.get("zone_id") else ""))[:400],
+                severity=ONU_STATE_SEVERITY.get(state, "major"),
+                occurred_at=utcnow(),
+                ref=str(o.get("sn", "")),
+                raw=json.dumps(o)[:2000]))
+    else:
+        # one rolled-up line per zone: how many in each fault state
+        by_zone: dict[str, dict[str, int]] = {}
+        for o in offline:
+            zone = str(o.get("zone_id") or o.get("zone_name") or "unzoned").strip()
+            state = str(o.get("status", "")).strip()
+            by_zone.setdefault(zone, {})
+            by_zone[zone][state] = by_zone[zone].get(state, 0) + 1
+        for zone, counts in sorted(by_zone.items()):
+            total = sum(counts.values())
+            detail = ", ".join(f"{n} {s}" for s, n in
+                               sorted(counts.items(), key=lambda kv: -kv[1]))
+            worst = ("critical"
+                     if any(s.lower() in ("los", "loss of signal", "power fail",
+                                          "power failure", "offline")
+                            for s in counts) else "major")
+            events.append(RawEvent(
+                source="SMARTOLT", etype="onu_fleet", device=f"SMARTOLT ZONE {zone}",
+                summary=(f"{total} ONU(s) offline in zone {zone} — {detail}"
+                         f"{' — set SMARTOLT_ONU_ALERTS=1 for per-ONU tickets'
+                          if total else ''}")[:400],
+                severity=worst, occurred_at=utcnow(),
+                ref=zone, raw=json.dumps(counts)[:600],
+                key_extra=f"{zone}:{detail}"))
 
     # ---- 3. Optical levels -> FR-82 trend history for the risk watcher
     try:
@@ -182,4 +222,18 @@ def collect_smartolt(fetcher=None) -> list[RawEvent]:
     except SmartOltError:
         pass
 
+    cap = settings.SMARTOLT_MAX_EVENTS
+    if cap and len(events) > cap:
+        # PON outages first (they are the real NOC signal), then severity order
+        def rank(e):
+            return (0 if e.etype == "pon" else 1,
+                    {"critical": 0, "major": 1, "minor": 2}.get(e.severity, 3))
+        events.sort(key=rank)
+        dropped = len(events) - cap
+        events = events[:cap]
+        events.append(RawEvent(
+            source="SMARTOLT", etype="info", device="SmartOLT collector",
+            summary=(f"Output capped at {cap} events; {dropped} more were "
+                     f"truncated (raise SMARTOLT_MAX_EVENTS to keep them)"),
+            severity="minor", occurred_at=utcnow()))
     return events

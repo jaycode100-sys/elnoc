@@ -9,7 +9,7 @@ from app.adapters.base import RawEvent
 from app.adapters.phoenix_csv import import_registry_csv
 from app.config import settings
 from app.database import SessionLocal
-from app.models import Link, OpticalReading, SiteDevice
+from app.models import Link, OpticalReading, SiteDevice, Event, Case
 from app.services.ingestion import ingest_events
 from app.utils_time import utcnow
 
@@ -111,7 +111,7 @@ def test_pipeline_stores_optical_reading():
         re = RawEvent(source="PRTG", etype="down", device=link.name,
                       summary="down with optics", severity="critical",
                       occurred_at=utcnow(), rsl_dbm=-22.5)
-        res = ingest_events(db, [re], dry_run=True)
+        res = ingest_events(db, [re], dry_run=False)
         # an open case may already exist on this link from other tests —
         # either way the event lands on exactly one case:
         assert res["opened"] + res["updated"] == 1
@@ -119,6 +119,28 @@ def test_pipeline_stores_optical_reading():
             OpticalReading.device == link.name,
             OpticalReading.rsl_dbm == -22.5).all()
         assert len(rows) == 1 and rows[0].link_id == link.id
+    finally:
+        db.close()
+
+
+def test_dry_run_writes_nothing():
+    """A "dry run" that persists events and readings is worse than no flag:
+    operators use it to preview a source and must be able to trust it."""
+    db = SessionLocal()
+    try:
+        before_events = db.query(Event).count()
+        before_readings = db.query(OpticalReading).count()
+        before_cases = db.query(Case).count()
+        re = RawEvent(source="PRTG", etype="down", device="dry-run-probe-device",
+                      summary="dry run must not persist", severity="critical",
+                      occurred_at=utcnow(), rsl_dbm=-33.7)
+        res = ingest_events(db, [re], dry_run=True)
+        assert res["opened"] == 1, "it reports what WOULD happen"
+        assert db.query(Event).count() == before_events
+        assert db.query(OpticalReading).count() == before_readings
+        assert db.query(Case).count() == before_cases
+        assert not db.query(OpticalReading).filter(
+            OpticalReading.device == "dry-run-probe-device").all()
     finally:
         db.close()
 

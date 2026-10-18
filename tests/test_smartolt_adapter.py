@@ -29,7 +29,8 @@ class FakeResp:
 
 def _settings(**kw):
     defaults = {"SMARTOLT_BASE_URL": "https://acme.smartolt.com",
-                "SMARTOLT_API_KEY": "k", "SMARTOLT_STATUS_SINCE": ""}
+                "SMARTOLT_API_KEY": "k", "SMARTOLT_STATUS_SINCE": "",
+                "SMARTOLT_ONU_ALERTS": "0", "SMARTOLT_MAX_EVENTS": 200}
     defaults.update(kw)
     return types.SimpleNamespace(**defaults)
 
@@ -85,7 +86,7 @@ def test_pon_outage_is_critical(monkeypatch):
 
 
 def test_onu_fault_states_mapped_and_online_ignored(monkeypatch):
-    orig = _patch_settings({})
+    orig = _patch_settings({"SMARTOLT_ONU_ALERTS": "1"})
     monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResp(
         {"status": True, "response": [
             {"unique_external_id": "cust-1", "sn": "ZTEGC1", "status": "LOS"},
@@ -99,6 +100,72 @@ def test_onu_fault_states_mapped_and_online_ignored(monkeypatch):
     assert devs.get("cust-1") == "critical"
     assert devs.get("cust-2") == "critical"
     assert "cust-3" not in devs, "Online ONUs must not create events"
+
+
+def test_onu_fleet_rolls_up_per_zone_by_default(monkeypatch):
+    """The real SmartOLT estate returns 1000+ offline ONUs; one ticket each
+    would bury the NOC, so per-ONU alerts are off and each zone gets one line."""
+    orig = _patch_settings({"SMARTOLT_ONU_ALERTS": "0"})
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResp(
+        {"status": True, "response": (
+            [{"unique_external_id": f"c{i}", "sn": f"ZTE{i}",
+              "status": "Offline", "zone_id": "7"} for i in range(150)] +
+            [{"unique_external_id": "cX", "sn": "ZTEX",
+              "status": "Power fail", "zone_id": "8"}])}))
+    try:
+        ev = smartolt.collect_smartolt()
+    finally:
+        smartolt.settings = orig
+    fleet = [e for e in ev if e.etype == "onu_fleet"]
+    assert len(fleet) == 2, f"one line per zone, got {len(fleet)}"
+    assert not [e for e in ev if e.etype == "onu"], "no per-ONU tickets by default"
+    z7 = next(e for e in fleet if "ZONE 7" in e.device)
+    assert "150 ONU(s) offline in zone 7" in z7.summary
+    assert z7.severity == "critical"
+    # the fingerprint must include the breakdown so a changed count is a new event
+    assert z7.key_extra.startswith("7:")
+
+
+def test_flag_string_zero_is_off(monkeypatch):
+    """'0' is a truthy string in Python — the flag must still read as OFF."""
+    orig = _patch_settings({"SMARTOLT_ONU_ALERTS": "0"})
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResp(
+        {"status": True, "response": [
+            {"unique_external_id": "c1", "sn": "Z1", "status": "Offline",
+             "zone_id": "3"}]}))
+    try:
+        ev = smartolt.collect_smartolt()
+    finally:
+        smartolt.settings = orig
+    assert [e.etype for e in ev if e.etype in ("onu", "onu_fleet")] == ["onu_fleet"]
+
+
+def test_flag_one_is_on(monkeypatch):
+    orig = _patch_settings({"SMARTOLT_ONU_ALERTS": "1"})
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResp(
+        {"status": True, "response": [
+            {"unique_external_id": "c1", "sn": "Z1", "status": "Offline",
+             "zone_id": "3"}]}))
+    try:
+        ev = smartolt.collect_smartolt()
+    finally:
+        smartolt.settings = orig
+    assert [e.etype for e in ev if e.etype in ("onu", "onu_fleet")] == ["onu"]
+
+
+def test_event_cap_truncates_and_says_so(monkeypatch):
+    orig = _patch_settings({"SMARTOLT_MAX_EVENTS": 5})
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResp(
+        {"status": True, "response": [
+            {"unique_external_id": f"c{i}", "sn": f"Z{i}", "status": "Offline",
+             "zone_id": str(i)} for i in range(40)]}))
+    try:
+        ev = smartolt.collect_smartolt()
+    finally:
+        smartolt.settings = orig
+    assert len(ev) == 6, "5 kept + 1 truncation notice"
+    assert "truncated" in ev[-1].summary
+    assert ev[-1].etype == "info"
 
 
 def test_signal_feeds_rsl_reading(monkeypatch):

@@ -27,6 +27,17 @@ class Settings:
     SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_SERVICE_KEY", "")
     SUPABASE_BACKUP_BUCKET: str = os.getenv("SUPABASE_BACKUP_BUCKET", "elnoc-backups")
 
+    # AI assistant — official provider APIs. Either one is enough; Anthropic
+    # wins if both are set. LLM_API_KEY is kept as the legacy OpenAI name.
+    LLM_API_KEY: str = os.getenv("OPENAI_API_KEY", "") or os.getenv("LLM_API_KEY", "")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "")
+    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "")
+    # Cap the assistant so a curious loop cannot burn the monthly credit.
+    ASSISTANT_DAILY_CAP: int = _int("ASSISTANT_DAILY_CAP", 200)
+    # How many prior turns to resend as context.
+    ASSISTANT_HISTORY_TURNS: int = _int("ASSISTANT_HISTORY_TURNS", 8)
+
     ESC_STEP_WAIT_MIN: int = _int("ESC_STEP_WAIT_MIN", 15)
     MAJOR_DIGEST_HOURS: int = _int("MAJOR_DIGEST_HOURS", 4)
     STALE_WAIT_MIN: int = _int("STALE_WAIT_MIN", 120)
@@ -52,6 +63,11 @@ class Settings:
     SMARTOLT_API_KEY: str = os.getenv("SMARTOLT_API_KEY", "")
     # Incremental window for get_onus_statuses; blank = full scan.
     SMARTOLT_STATUS_SINCE: str = os.getenv("SMARTOLT_STATUS_SINCE", "")
+    # 0 (default) = per-zone roll-up only. 1 = one ticket per offline ONU.
+    # Leave at 0 unless you genuinely want a ticket for every single ONU.
+    SMARTOLT_ONU_ALERTS: str = os.getenv("SMARTOLT_ONU_ALERTS", "0")
+    # Hard ceiling on events per collector run, so one bad poll cannot bury the NOC.
+    SMARTOLT_MAX_EVENTS: int = int(os.getenv("SMARTOLT_MAX_EVENTS", "200") or 200)
 
     MAIL_IMAP_HOST: str = os.getenv("MAIL_IMAP_HOST", "")
     MAIL_IMAP_USER: str = os.getenv("MAIL_IMAP_USER", "")

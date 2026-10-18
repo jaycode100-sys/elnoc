@@ -8,7 +8,7 @@ identically: maintenance suppression → idempotent store → optical reading
 from __future__ import annotations
 from datetime import timedelta
 from sqlalchemy.orm import Session
-from ..models import Link, Customer, OpticalReading
+from ..models import Link, Customer, OpticalReading, Event
 from ..utils_time import ensure_utc
 from .correlation import store_event, correlate_to_case, in_maintenance
 from ..notify.dispatcher import notify_case
@@ -42,11 +42,28 @@ def _keep_reading(db: Session, re, link_id: int | None) -> None:
     db.commit()
 
 
+def _would_create(db: Session, re) -> bool:
+    """dry_run fingerprint check — no writes (see ingest_events)."""
+    from .correlation import fingerprint
+    key = fingerprint(re.source, re.device, re.etype,
+                      ensure_utc(re.occurred_at or utcnow()),
+                      getattr(re, "key_extra", "") or "")
+    return db.get(Event, key) is None
+
+
 def ingest_events(db: Session, raw_events, dry_run: bool = False) -> dict:
     opened, updated, suppressed, notified = 0, 0, 0, 0
     for re in raw_events or []:
         if in_maintenance(db, re.device, None, re.occurred_at):
             suppressed += 1
+            continue
+        if dry_run:
+            # Report what WOULD happen. Never touch the database: a "dry run"
+            # that writes events and opens cases is worse than no flag at all.
+            if _would_create(db, re):
+                opened += 1
+            else:
+                updated += 1
             continue
         ev, created = store_event(db, re.source, re.etype, re.device, re.summary,
                                   re.severity, re.occurred_at, re.ref, re.raw,

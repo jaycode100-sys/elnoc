@@ -296,6 +296,38 @@ class CollectorRun(Base):
     last_ok: Mapped[bool] = mapped_column(Boolean, default=True)
     last_error: Mapped[str] = mapped_column(Text, default="")
 
+class AssistantThread(Base):
+    """One assistant conversation, optionally pinned to a case (FR-91..FR-95).
+
+    History lives here, in ELNOC's own database — never in the provider's
+    account, so it is auditable and disappears with the case.
+    """
+    __tablename__ = "assistant_thread"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("case_tbl.id"), nullable=True)
+    user: Mapped[str] = mapped_column(String(200), default="")
+    title: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_default)
+    messages: Mapped[list["AssistantMessage"]] = relationship(
+        back_populates="thread", cascade="all, delete-orphan",
+        order_by="AssistantMessage.id")
+
+
+class AssistantMessage(Base):
+    __tablename__ = "assistant_message"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    thread_id: Mapped[int] = mapped_column(ForeignKey("assistant_thread.id"))
+    role: Mapped[str] = mapped_column(String(20), default="user")  # user|assistant|system
+    content: Mapped[str] = mapped_column(Text, default="")
+    provider: Mapped[str] = mapped_column(String(30), default="")
+    model: Mapped[str] = mapped_column(String(80), default="")
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cited_playbooks: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_default)
+    thread: Mapped["AssistantThread"] = relationship(back_populates="messages")
+
+
 class AgentLog(Base):
     __tablename__ = "agent_log"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

@@ -1,0 +1,106 @@
+{% extends "base.html" %}{% block title %}Assistant{% endblock %}
+{% block pagetitle %}AI assistant{% endblock %}
+{% block pagesub %}Answers grounded in {{ playbooks }} ELNOC playbook{{ '' if playbooks == 1 else 's' }}. History stays in ELNOC, not in the provider's account.{% endblock %}
+{% block body %}
+<div class="grid2">
+<div class="card">
+  <h2>◉ {{ thread.title if thread else 'New conversation' }}</h2>
+  {% if not status.ready %}
+  <p class="pill stale">{{ status.provider or 'no provider' }} not configured</p>
+  <p class="muted">{{ status.reason }} Until then ELNOC answers with its own offline tools
+  (glossary, RSL calculator, playbook search) — no tokens spent.</p>
+  {% else %}
+  <p><span class="pill ok">{{ status.provider }}</span> <span class="muted">{{ status.model }}</span></p>
+  {% endif %}
+
+  <div id="msgs" style="display:flex; flex-direction:column; gap:10px; margin:14px 0; max-height:52vh; overflow:auto">
+  {% for m in (messages or []) %}
+    {% if m.role == 'user' %}
+    <div style="align-self:flex-end; max-width:82%; background:var(--accent); color:#fff; padding:8px 12px; border-radius:12px 12px 3px 12px">{{ m.content }}</div>
+    {% else %}
+    <div style="align-self:flex-start; max-width:92%; background:var(--bg); border:1px solid var(--line); padding:10px 12px; border-radius:12px 12px 12px 3px">
+      <div style="white-space:pre-wrap">{{ m.content }}</div>
+      <div class="muted" style="font-size:11px; margin-top:6px">
+        {{ m.provider }} {{ m.model }}{% if m.cited_playbooks %} · cited: {{ m.cited_playbooks }}{% endif %}
+        {% if m.input_tokens or m.output_tokens %} · {{ m.input_tokens }}→{{ m.output_tokens }} tok{% endif %}
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
+  </div>
+
+  <form id="askform" style="display:flex; gap:8px">
+    <input id="q" name="question" placeholder="e.g. RSL is -29 dBm on a GPON-C+, what do I check first?" style="flex:1" autocomplete="off">
+    <button type="submit" id="sendbtn">Ask</button>
+  </form>
+  <p class="muted" style="font-size:12px" id="statusline"></p>
+</div>
+
+<div class="card">
+  <h2>▤ Attach to a case (optional)</h2>
+  <p class="muted" style="margin-top:0">Pinned conversations get that link's symptoms, updates and optical history — and ELNOC's own RSL verdict, so the model repeats the numbers instead of guessing them.</p>
+  <label for="case">Open case</label>
+  <select id="case" style="width:100%; margin-bottom:10px">
+    <option value="">— general NOC question —</option>
+    {% for c in open_cases %}<option value="{{ c.id }}" {% if case and case.id == c.id %}selected{% endif %}>#{{ c.id }} {{ c.device }} ({{ c.link_state }}/{{ c.severity }})</option>{% endfor %}
+  </select>
+  <h2>Recent threads</h2>
+  {% if threads %}
+  <ul>{% for t in threads %}<li><a href="/assistant/{{ t.id }}">#{{ t.id }} {{ t.title[:60] }}</a>
+    <span class="muted">{{ t.messages|length }} msg{% if t.case_id %} · case {{ t.case_id }}{% endif %}</span></li>{% endfor %}</ul>
+  {% else %}<p class="muted">Nothing yet.</p>{% endif %}
+</div>
+</div>
+
+<script>
+const TID = {{ (thread.id if thread else 0) }};
+const CSRF = "";
+document.getElementById("askform").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const q = document.getElementById("q");
+  const text = q.value.trim();
+  if (!text) return;
+  q.value = "";
+  const box = document.getElementById("msgs");
+  const mine = document.createElement("div");
+  mine.style.cssText = "align-self:flex-end; max-width:82%; background:var(--accent); color:#fff; padding:8px 12px; border-radius:12px 12px 3px 12px";
+  mine.textContent = text;
+  box.appendChild(mine);
+  const wait = document.createElement("div");
+  wait.textContent = "thinking…";
+  wait.style.cssText = "align-self:flex-start; color:var(--muted)";
+  box.appendChild(wait);
+  box.scrollTop = box.scrollHeight;
+  document.getElementById("sendbtn").disabled = true;
+  try {
+    const r = await fetch("/api/assistant/chat", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({question: text, thread_id: TID || null,
+                            case_id: document.getElementById("case").value || null})
+    });
+    const d = await r.json();
+    wait.remove();
+    const ans = document.createElement("div");
+    ans.style.cssText = "align-self:flex-start; max-width:92%; background:var(--bg); border:1px solid var(--line); padding:10px 12px; border-radius:12px 12px 12px 3px; white-space:pre-wrap";
+    if (d.error && !d.fallback) { ans.textContent = "⚠ " + d.error; }
+    else if (d.fallback) { ans.textContent = d.fallback + (d.error ? "\n\n(" + d.error + ")" : ""); }
+    else { ans.textContent = d.answer; }
+    const meta = document.createElement("div");
+    meta.className = "muted";
+    meta.style.fontSize = "11px";
+    meta.style.marginTop = "6px";
+    meta.textContent = (d.model || d.provider || "") + (d.cited ? " · cited: " + d.cited : "")
+      + (d.tokens ? ` · ${d.tokens.in}→${d.tokens.out} tok` : "");
+    ans.appendChild(meta);
+    box.appendChild(ans);
+    if (d.thread_id && !TID) { history.replaceState(null, "", "/assistant/" + d.thread_id); }
+    if (d.used_today) document.getElementById("statusline").textContent =
+      `Assistant calls used today: ${d.used_today}/${d.cap}`;
+  } catch (e) {
+    wait.textContent = "⚠ " + e;
+  }
+  document.getElementById("sendbtn").disabled = false;
+  box.scrollTop = box.scrollHeight;
+});
+</script>
+{% endblock %}
