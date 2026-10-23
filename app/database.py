@@ -1,14 +1,22 @@
 """SQLite + SQLAlchemy setup: WAL mode, timeout, FTS5 table (NFR-08, NFR-15)."""
 from __future__ import annotations
-import os
+import os, sys
 from pathlib import Path
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 from .config import settings
 
+
+def _res(p):
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, p)
+    return os.path.abspath(p)
+
+
 class Base(DeclarativeBase):
     pass
+
 
 def _db_url() -> str:
     # Supabase/any Postgres wins when set (NFR-15 scale path); else local SQLite.
@@ -16,6 +24,9 @@ def _db_url() -> str:
     if pg:
         return pg
     p = Path(settings.DB_PATH)
+    # also try bundled data/ if relative
+    if not p.is_absolute():
+        p = Path(_res(str(p)))
     p.parent.mkdir(parents=True, exist_ok=True)
     return f"sqlite:///{p}"
 

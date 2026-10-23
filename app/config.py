@@ -1,6 +1,12 @@
 """Central configuration. All secrets come from .env, never from code."""
 from __future__ import annotations
-import os
+import os, sys
+
+
+def _res(p):
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, p)
+    return os.path.abspath(p)
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -15,8 +21,8 @@ def _int(name: str, default: int) -> int:
         return default
 
 class Settings:
-    DB_PATH: str = os.getenv("ELNOC_DB_PATH", "./data/elnoc.db")
-    BACKUP_DIR: str = os.getenv("ELNOC_BACKUP_DIR", "./backups")
+    DB_PATH: str = os.getenv("ELNOC_DB_PATH") or _res("data/elnoc.db")
+    BACKUP_DIR: str = os.getenv("ELNOC_BACKUP_DIR") or _res("backups")
     SECRET_KEY: str = os.getenv("ELNOC_SECRET_KEY", "dev-only-change-me-please-0123456789")
     SESSION_HOURS: int = _int("ELNOC_SESSION_HOURS", 12)
     BASE_URL: str = os.getenv("ELNOC_BASE_URL", "http://localhost:8000")

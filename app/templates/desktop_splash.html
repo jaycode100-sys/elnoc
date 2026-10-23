@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}ELNOC - Sign in{% endblock %}
+{% block pagetitle %}ELNOC Desktop{% endblock %}
+{% block pagesub %}Sign in from your browser, then return here.{% endblock %}
+{% block body %}
+<div class="card" style="max-width:520px">
+  <h2>Sign in with your browser</h2>
+  <p class="muted">This opens your default browser to log in securely. After you sign in there, you'll be returned to the ELNOC app automatically.</p>
+  <button onclick="openBrowser()">Sign in with browser</button>
+  <p id="status" class="muted" style="margin-top:10px">Waiting for sign-in...</p>
+</div>
+<script>
+function openBrowser(){
+  fetch('/auth/desktop/start?state={{request.query_params.get("state","")}}').then(()=>{
+    window.open('/auth/desktop/start?state={{request.query_params.get("state","")}}','_blank');
+  });
+  poll();
+}
+let poll=()=>{ fetch('/auth/desktop/status').then(r=>r.json()).then(d=>{
+  if(d.authed){ document.getElementById('status').textContent='Signed in as '+d.user+' — opening dashboard...'; setTimeout(()=>location.href='/dashboard',600); }
+  else setTimeout(poll,1000);
+}).catch(()=>setTimeout(poll,1500)); };
+poll();
+</script>
+{% endblock %}
