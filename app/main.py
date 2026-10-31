@@ -11,7 +11,7 @@ app = FastAPI(title="ELNOC", version="0.1.0")
 BASE = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 
-from .routers import auth, quicklog, cases, dashboard, handover, admin, ingest, acknowledge, playbooks, ask, evidence, links, assistant, desktop_auth  # noqa: E402
+from .routers import auth, quicklog, cases, dashboard, handover, admin, ingest, acknowledge, playbooks, ask, evidence, links, assistant, desktop_auth, power, myshift, customers_api, clear_data  # noqa: E402
 from .security import LoginRequired, get_current_user_optional  # noqa: E402
 from .database import get_db  # noqa: E402
 
@@ -29,6 +29,10 @@ app.include_router(evidence.router)
 app.include_router(links.router)
 app.include_router(assistant.router)
 app.include_router(desktop_auth.router)
+app.include_router(power.router)
+app.include_router(myshift.router)
+app.include_router(customers_api.router)
+app.include_router(clear_data.router)
 
 @app.on_event("startup")
 def _startup():
@@ -78,17 +82,33 @@ def landing(request: Request):
 def health():
     return {"ok": True, "app": "ELNOC"}
 
-LOGO_FILE = BASE.parent / "ELNOC.png"  # single source of truth: root folder
+def _logo_candidates():
+    """Logo sources, best first: root ELNOC.png, else the bundled app icon.
+    In dev, BASE.parent is the repo root; frozen, it's the bundle root (_MEIPASS)."""
+    seen = []
+    for name in ("ELNOC.png", "ELNOC.ico"):
+        p = BASE.parent / name
+        if p.exists() and p not in seen:
+            seen.append(p)
+    return seen
+
+def _logo_response(cache: bool = False):
+    from fastapi.responses import FileResponse
+    paths = _logo_candidates()
+    if not paths:
+        from fastapi import Response
+        return Response(status_code=404)
+    path = paths[0]
+    media = "image/png" if path.suffix.lower() == ".png" else "image/x-icon"
+    headers = {"Cache-Control": "public, max-age=86400"} if cache else {}
+    return FileResponse(str(path), media_type=media, headers=headers)
 
 @app.get("/logo.png")
 def logo():
     """Solution logo for headers/rails (served from the root ELNOC.png)."""
-    from fastapi.responses import FileResponse
-    return FileResponse(str(LOGO_FILE), media_type="image/png")
+    return _logo_response()
 
 @app.get("/favicon.ico")
 def favicon():
     """Browser tab icon — same file, so logo and favicon can never drift."""
-    from fastapi.responses import FileResponse
-    return FileResponse(str(LOGO_FILE), media_type="image/png",
-                        headers={"Cache-Control": "public, max-age=86400"})
+    return _logo_response(cache=True)

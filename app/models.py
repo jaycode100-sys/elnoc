@@ -417,3 +417,36 @@ class HandoverImport(Base):
     entries_json: Mapped[str] = mapped_column(Text, default="[]")
     applied: Mapped[bool] = mapped_column(Boolean, default=False)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# ---------------------------------------------------------------- Shift notes (MyShift)
+class ShiftNote(Base):
+    """Engineer's per-shift notes + extra information. One per engineer per
+    shift per date. Used for the MyShift shift-close gate."""
+    __tablename__ = "shift_note"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    engineer: Mapped[str] = mapped_column(String(200), default="")
+    shift_date: Mapped[str] = mapped_column(String(20), default="")   # DD/MM/YYYY Lagos
+    shift: Mapped[str] = mapped_column(String(20), default="day")     # day|night
+    notes: Mapped[str] = mapped_column(Text, default="")              # what happened
+    extra_info: Mapped[str] = mapped_column(Text, default="")         # extra context
+    power_status: Mapped[str] = mapped_column(String(200), default="")  # battery / power summary
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_default)
+
+
+# ---------------------------------------------------------------- Power reports
+# Day-duty power log: light, big generator, small generator, inverter, solar,
+# power tanks — one row per activity event with battery levels.
+class PowerReport(Base):
+    __tablename__ = "power_report"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    report_date: Mapped[str] = mapped_column(String(20), default="")   # DD/MM/YYYY Lagos
+    activity: Mapped[str] = mapped_column(String(200), default="")     # e.g. "Generator switched OFF"
+    reported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_default)
+    event_time: Mapped[str] = mapped_column(String(20), default="")    # HH:MM AM/PM as written
+    battery_level: Mapped[str] = mapped_column(String(100), default="")  # e.g. "71%" or "Inverter: 24%, Kitchen: 44%, Office: 39%"
+    source: Mapped[str] = mapped_column(String(50), default="manual")  # manual|agent|whatsapp|excel
+    raw_text: Mapped[str] = mapped_column(Text, default="")            # original agent/Excel text
+    summary: Mapped[str] = mapped_column(Text, default="")             # computed summary line
+    created_by: Mapped[str] = mapped_column(String(200), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_default)

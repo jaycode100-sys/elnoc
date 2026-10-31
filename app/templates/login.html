@@ -8,16 +8,16 @@
 <script src="/static/app.js" defer></script>
 </head><body>
 <div class="login-wrap"><div class="login-card">
-<div class="brand"><img class="brand-logo" src="/logo.png" alt="ELNOC logo"><div><div class="brand-name">ELNOC</div><div class="brand-sub">Engage and Learn NOC</div></div></div>
-<h2>Log in.</h2>
-<p class="muted">The command deck is behind this gate. Sessions last 12 hours, then re-auth.</p>
-{% if error %}<p><span class="pill critical">{{ error }}</span></p>{% endif %}
-<form method="post" action="/login">
+<div class="brand" style="justify-content:center"><img class="brand-logo" src="/logo.png" alt="ELNOC logo"><div><div class="brand-name">ELNOC</div><div class="brand-sub">Engage and Learn NOC</div></div></div>
+<h2 style="text-align:center">Log in.</h2>
+<p class="muted" style="text-align:center">The command deck is behind this gate. Sessions last 12 hours, then re-auth.</p>
+{% if error %}<p style="text-align:center"><span class="pill critical">{{ error }}</span></p>{% endif %}
+<form method="post" action="/login" class="login-form">
 <input type="hidden" name="next" value="{{ next }}">
-<label>Username</label><input name="username" autofocus autocomplete="username"><br><br>
-<label>Password</label><input name="password" type="password" autocomplete="current-password"><br><br>
-<button type="submit" style="width:100%; justify-content:center">Log in →</button></form>
-<p class="muted" style="font-size:13.5px">New here? <a href="/signup">Create an account</a> · <a href="/">← back to overview</a></p>
+<label style="display:block; text-align:left; width:100%">Username</label><input name="username" autofocus autocomplete="username" class="login-input"><br>
+<label style="display:block; text-align:left; width:100%">Password</label><input name="password" type="password" autocomplete="current-password" class="login-input"><br>
+<button type="submit" class="btn login-btn">Log in →</button></form>
+<p class="muted" style="font-size:13.5px; text-align:center">New here? <a href="/signup">Create an account</a> · <a href="/">← back to overview</a></p>
 </div></div>
 <div id="toast"></div>
 </body></html>

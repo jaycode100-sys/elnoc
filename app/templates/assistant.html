@@ -1,60 +1,164 @@
 {% extends "base.html" %}{% block title %}Assistant{% endblock %}
 {% block pagetitle %}AI assistant{% endblock %}
-{% block pagesub %}Answers grounded in {{ playbooks }} ELNOC playbook{{ '' if playbooks == 1 else 's' }}. History stays in ELNOC, not in the provider's account.{% endblock %}
+{% block pagesub %}Agentic NOC assistant — asks ELNOC tools, then answers. History stays in ELNOC.{% endblock %}
 {% block body %}
-<div class="grid2">
-<div class="card">
-  <h2>◉ {{ thread.title if thread else 'New conversation' }}</h2>
-  {% if not status.ready %}
-  <p class="pill stale">{{ status.provider or 'no provider' }} not configured</p>
-  <p class="muted">{{ status.reason }} Until then ELNOC answers with its own offline tools
-  (glossary, RSL calculator, playbook search) — no tokens spent.</p>
-  {% else %}
-  <p><span class="pill ok">{{ status.provider }}</span> <span class="muted">{{ status.model }}</span></p>
-  {% endif %}
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  /* ---------- agentic chat layout (Telegram/WhatsApp style) ---------- */
+  .agent-shell{display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:16px; margin-bottom:16px}
+  .agent-main{min-width:0}
+  .agent-sidebar{min-width:0}
 
-  <div id="msgs" style="display:flex; flex-direction:column; gap:10px; margin:14px 0; max-height:52vh; overflow:auto">
-  {% for m in (messages or []) %}
-    {% if m.role == 'user' %}
-    <div style="align-self:flex-end; max-width:82%; background:var(--accent); color:#fff; padding:8px 12px; border-radius:12px 12px 3px 12px">{{ m.content }}</div>
-    {% else %}
-    <div style="align-self:flex-start; max-width:92%; background:var(--bg); border:1px solid var(--line); padding:10px 12px; border-radius:12px 12px 12px 3px">
-      <div style="white-space:pre-wrap">{{ m.content }}</div>
-      <div class="muted" style="font-size:11px; margin-top:6px">
-        {{ m.provider }} {{ m.model }}{% if m.cited_playbooks %} · cited: {{ m.cited_playbooks }}{% endif %}
-        {% if m.input_tokens or m.output_tokens %} · {{ m.input_tokens }}→{{ m.output_tokens }} tok{% endif %}
+  .chat-wrap{display:flex; flex-direction:column; height:62vh; max-height:700px; border-radius:16px;
+    border:1px solid var(--line2); background:var(--glass2); backdrop-filter:blur(14px); overflow:hidden; box-shadow:var(--shadow)}
+  .chat-msgs{flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px;
+    background:linear-gradient(180deg, rgba(10,16,32,.85), rgba(6,10,22,.9))}
+  .bubble{max-width:85%; padding:11px 15px; border-radius:14px; font-size:14.5px; line-height:1.5; word-wrap:break-word; position:relative}
+  .bubble.me{align-self:flex-end; background:linear-gradient(135deg, rgba(58,226,255,.2), rgba(124,92,255,.2)); border:1px solid var(--line2); color:#fff}
+  .bubble.ai{align-self:flex-start; background:rgba(255,255,255,.04); border:1px solid var(--line); color:var(--text)}
+  .bubble.system{align-self:center; max-width:100%; font-size:12px; color:var(--faint); text-align:center; padding:8px}
+  .bubble .meta{font-size:11px; color:var(--faint); margin-top:7px; border-top:1px solid rgba(255,255,255,.06); padding-top:7px}
+  .bubble .steps{margin-top:8px; font-size:12px; color:var(--muted)}
+  .bubble .steps .step{margin:4px 0; padding-left:10px; border-left:2px solid var(--cyan)}
+  .bubble .steps .step .tool{font-family:var(--mono); color:var(--cyan); font-weight:700}
+
+  .agent-input-wrap{display:flex; gap:8px; align-items:flex-end; padding:12px; border-top:1px solid var(--line2);
+    background:rgba(6,10,22,.8); gap:10px}
+  .agent-input-wrap input{flex:1; min-width:0; background:rgba(4,8,18,.8); color:var(--text); border:1px solid var(--line2); border-radius:12px; padding:11px 15px; font-size:15px; font-family:var(--font)}
+  .agent-input-wrap input:focus{border-color:var(--cyan); box-shadow:0 0 0 3px rgba(58,226,255,.18); outline:none}
+  .agent-input-wrap button{flex-shrink:0; min-width:88px}
+
+  /* ---------- agent actions sidebar ---------- */
+  .agent-panel{border-radius:16px; border:1px solid var(--line2); background:var(--glass2); backdrop-filter:blur(14px); padding:14px; box-shadow:var(--shadow); height:fit-content}
+  .agent-panel h3{margin:0 0 10px; font-size:16px; letter-spacing:-.4px; display:flex; align-items:center; gap:8px}
+  .agent-panel .dot{width:8px; height:8px; border-radius:50%; background:var(--cyan); box-shadow:0 0 10px var(--cyan)}
+  .agent-panel .step{padding:8px 10px; border-radius:11px; margin-bottom:8px; background:rgba(255,255,255,.03); border:1px solid rgba(125,165,255,.08); font-size:13px}
+  .agent-panel .step .tool{color:var(--cyan); font-family:var(--mono); font-weight:700}
+  .agent-panel .step .reason{color:var(--muted); font-size:12px; margin-top:3px}
+  .agent-panel .step .res{margin-top:5px; font-size:12px; color:var(--text); white-space:pre-wrap}
+  .agent-panel .step.none{opacity:.6}
+  .agent-panel .empty{color:var(--faint); font-size:12.5px; text-align:center; padding-top:20px}
+
+  .quick{margin:10px 0 4px; display:flex; gap:8px; flex-wrap:wrap}
+  .quick button{flex:0 0 auto; background:rgba(255,255,255,.06); color:var(--text); border:1px solid var(--line2); border-radius:10px; padding:7px 12px; font-size:13px; cursor:pointer}
+  .quick button:hover{border-color:var(--line2); background:rgba(58,226,255,.12)}
+
+  /* case attach strip */
+  .case-strip{margin:12px 0 6px; padding:10px 14px; border-radius:12px; background:rgba(124,92,255,.08); border:1px solid var(--line2); font-size:13px}
+  .case-strip b{color:var(--cyan)}
+
+  /* ---------- responsive ---------- */
+  @media(max-width:1000px){
+    .agent-shell{grid-template-columns:1fr}
+    .agent-sidebar{display:none}
+    .chat-wrap{height:55vh}
+    .bubble{max-width:92%}
+  }
+  @media(max-width:560px){
+    .agent-input-wrap{flex-direction:column}
+    .agent-input-wrap button{width:100%}
+    .bubble{max-width:96%}
+    main{padding:14px}
+  }
+</style>
+
+<div class="grid2">
+  <!-- left: chat -->
+  <div class="agent-main">
+    <div class="card">
+      {% if thread is not none %}
+      <h2 style="margin:0 0 4px">◉ {{ thread.title }}</h2>
+      {% else %}
+      <h2 style="margin:0 0 4px">◉ New conversation</h2>
+      {% endif %}
+      {% if not status.ready %}
+      <p class="pill stale">{{ status.provider or 'no provider' }} not configured</p>
+      <p class="muted">{{ status.reason }} Until then ELNOC answers with offline tools
+      (glossary, RSL calculator, playbook search) — no tokens spent.</p>
+      {% else %}
+      <p><span class="pill ok">{{ status.provider }}</span>
+      <span class="muted">{{ status.model }}</span> <span class="pill ok" style="background:rgba(56,232,163,.13);color:#7df0c0;border-color:rgba(56,232,163,.4)">agentic · tools on</span></p>
+      {% endif %}
+
+      {% if thread is not none and thread.case_id and case %}
+      <div class="case-strip"><b>Attached to case #{{ case.id }}</b> · {{ case._link_name if case._link_name else case.device }} · {{ case.severity }} · {{ case.link_state }}</div>
+      {% endif %}
+
+      <div class="chat-wrap">
+        <div class="chat-msgs" id="msgs">
+        {% for m in (messages or []) %}
+          {% if m.role == 'user' %}
+          <div class="bubble me">{{ m.content }}</div>
+          {% else %}
+          <div class="bubble ai">
+            <div style="white-space:pre-wrap">{{ m.content }}</div>
+            <div class="meta">{{ m.provider }} {{ m.model }}{% if m.cited_playbooks %} · cited: {{ m.cited_playbooks }}{% endif %}{% if m.input_tokens or m.output_tokens %} · {{ m.input_tokens }}→{{ m.output_tokens }} tok{% endif %}</div>
+          </div>
+          {% endif %}
+        {% endfor %}
+        {% if agent_hint %}
+        <div class="bubble system">{{ agent_hint }}</div>
+        {% endif %}
+        </div>
       </div>
+
+      <div class="quick">
+        <button onclick="fillQ('RSL is -29 dBm on a GPON-C+, what do I check first?')">RSL -29 dBm</button>
+        <button onclick="fillQ('Check link LTV8 Ikeja-RC status')">Check a link</button>
+        <button onclick="fillQ('Search playbooks for fibre cut escalation')">Playbooks</button>
+        <button onclick="fillQ('Create a case for LTV8 Ikeja-RC, signal down')">Create case</button>
+      </div>
+
+      <form id="askform" style="display:flex; gap:8px">
+        <input id="q" name="question" placeholder="Ask the agent — e.g. “RSL is -29 dBm, what now?”" autocomplete="off" spellcheck="false">
+        <button type="submit" id="sendbtn">Ask</button>
+      </form>
+      <p class="muted" style="font-size:12px" id="statusline"></p>
     </div>
-    {% endif %}
-  {% endfor %}
   </div>
 
-  <form id="askform" style="display:flex; gap:8px">
-    <input id="q" name="question" placeholder="e.g. RSL is -29 dBm on a GPON-C+, what do I check first?" style="flex:1" autocomplete="off">
-    <button type="submit" id="sendbtn">Ask</button>
-  </form>
-  <p class="muted" style="font-size:12px" id="statusline"></p>
-</div>
+  <!-- right: agent actions panel -->
+  <div class="agent-sidebar agent-main">
+    <div class="agent-panel">
+      <h3><span class="dot"></span>Agent actions</h3>
+      <div id="agent-steps" class="empty">No agent steps yet. Ask a question and watch the agent work.</div>
+    </div>
 
-<div class="card">
-  <h2>▤ Attach to a case (optional)</h2>
-  <p class="muted" style="margin-top:0">Pinned conversations get that link's symptoms, updates and optical history — and ELNOC's own RSL verdict, so the model repeats the numbers instead of guessing them.</p>
-  <label for="case">Open case</label>
-  <select id="case" style="width:100%; margin-bottom:10px">
-    <option value="">— general NOC question —</option>
-    {% for c in open_cases %}<option value="{{ c.id }}" {% if case and case.id == c.id %}selected{% endif %}>#{{ c.id }} {{ c.device }} ({{ c.link_state }}/{{ c.severity }})</option>{% endfor %}
-  </select>
-  <h2>Recent threads</h2>
-  {% if threads %}
-  <ul>{% for t in threads %}<li><a href="/assistant/{{ t.id }}">#{{ t.id }} {{ t.title[:60] }}</a>
-    <span class="muted">{{ t.messages|length }} msg{% if t.case_id %} · case {{ t.case_id }}{% endif %}</span></li>{% endfor %}</ul>
-  {% else %}<p class="muted">Nothing yet.</p>{% endif %}
-</div>
+    <div class="card" style="margin-top:12px">
+      <h2>▤ Attach to a case (optional)</h2>
+      <p class="muted" style="margin-top:0">Pinned conversations get that link's symptoms, updates and optical history — and ELNOC's own RSL verdict, so the model repeats the numbers instead of guessing them.</p>
+      <label for="case">Open case</label>
+      <select id="case" style="width:100%; margin-bottom:10px">
+        <option value="">— general NOC question —</option>
+        {% for c in open_cases %}<option value="{{ c.id }}" {% if case and case.id == c.id %}selected{% endif %}>#{{ c.id }} {{ c.device }} ({{ c.link_state }}/{{ c.severity }})</option>{% endfor %}
+      </select>
+      <h2>Recent threads</h2>
+      {% if threads %}
+      <ul>{% for t in threads %}<li><a href="/assistant/{{ t.id }}">#{{ t.id }} {{ t.title[:60] }}</a>
+        <span class="muted">{{ t.messages|length }} msg{% if t.case_id %} · case {{ t.case_id }}{% endif %}</span></li>{% endfor %}</ul>
+      {% else %}<p class="muted">Nothing yet.</p>{% endif %}
+    </div>
+  </div>
 </div>
 
 <script>
 const TID = {{ (thread.id if thread else 0) }};
-const CSRF = "";
+function fillQ(t){ document.getElementById('q').value = t; }
+function renderStep(s){
+  const d = document.createElement('div');
+  d.className = 'step';
+  const tool = document.createElement('span'); tool.className = 'tool'; tool.textContent = s.tool + ': ';
+  d.appendChild(tool);
+  const reason = document.createElement('div'); reason.className = 'reason'; reason.textContent = 'why: ' + (s.reason || '—');
+  d.appendChild(reason);
+  const res = document.createElement('div'); res.className = 'res';
+  const r = s.result || {};
+  if (r.error) { res.textContent = '⚠ ' + r.error; res.style.color = 'var(--danger)'; }
+  else if (r.summary) { res.textContent = '✓ ' + r.summary; }
+  else { res.textContent = JSON.stringify(r).slice(0, 400); }
+  d.appendChild(res);
+  return d;
+}
 document.getElementById("askform").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const q = document.getElementById("q");
@@ -63,17 +167,20 @@ document.getElementById("askform").addEventListener("submit", async (ev) => {
   q.value = "";
   const box = document.getElementById("msgs");
   const mine = document.createElement("div");
-  mine.style.cssText = "align-self:flex-end; max-width:82%; background:var(--accent); color:#fff; padding:8px 12px; border-radius:12px 12px 3px 12px";
-  mine.textContent = text;
+  mine.className = "bubble me"; mine.textContent = text;
   box.appendChild(mine);
   const wait = document.createElement("div");
-  wait.textContent = "thinking…";
-  wait.style.cssText = "align-self:flex-start; color:var(--muted)";
+  wait.className = "bubble ai"; wait.textContent = "thinking…";
   box.appendChild(wait);
   box.scrollTop = box.scrollHeight;
   document.getElementById("sendbtn").disabled = true;
+
+  // clear agent steps
+  const stepsBox = document.getElementById("agent-steps");
+  stepsBox.innerHTML = "";
+
   try {
-    const r = await fetch("/api/assistant/chat", {
+    const r = await fetch("/api/assistant/agent", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({question: text, thread_id: TID || null,
                             case_id: document.getElementById("case").value || null})
@@ -81,17 +188,27 @@ document.getElementById("askform").addEventListener("submit", async (ev) => {
     const d = await r.json();
     wait.remove();
     const ans = document.createElement("div");
-    ans.style.cssText = "align-self:flex-start; max-width:92%; background:var(--bg); border:1px solid var(--line); padding:10px 12px; border-radius:12px 12px 12px 3px; white-space:pre-wrap";
-    if (d.error && !d.fallback) { ans.textContent = "⚠ " + d.error; }
-    else if (d.fallback) { ans.textContent = d.fallback + (d.error ? "\n\n(" + d.error + ")" : ""); }
-    else { ans.textContent = d.answer; }
-    const meta = document.createElement("div");
-    meta.className = "muted";
-    meta.style.fontSize = "11px";
-    meta.style.marginTop = "6px";
-    meta.textContent = (d.model || d.provider || "") + (d.cited ? " · cited: " + d.cited : "")
-      + (d.tokens ? ` · ${d.tokens.in}→${d.tokens.out} tok` : "");
-    ans.appendChild(meta);
+    ans.className = "bubble ai";
+    ans.innerHTML = "<div style='white-space:pre-wrap'>" + (d.answer || "") + "</div>";
+    if (d.steps && d.steps.length) {
+      const meta = document.createElement("div"); meta.className = "meta";
+      meta.textContent = "Agent used " + d.steps.length + " tool step(s)";
+      ans.appendChild(meta);
+      const stepsDiv = document.createElement("div"); stepsDiv.className = "steps";
+      d.steps.forEach(s => stepsDiv.appendChild(renderStep(s)));
+      ans.appendChild(stepsDiv);
+      // also render in sidebar
+      d.steps.forEach(s => stepsBox.appendChild(renderStep(s)));
+    }
+    if (d.steps && d.steps.length === 0 && !d.offline) {
+      stepsBox.innerHTML = '<div class="step none"><span class="tool">direct answer:</span> no tools needed.</div>';
+    }
+    const meta2 = document.createElement("div");
+    meta2.className = "meta";
+    meta2.textContent = (d.provider || "") + (d.model ? " · " + d.model : "") +
+      (d.steps && d.steps.length ? " · " + d.steps.length + " agent step(s)" : "") +
+      (d.tokens ? ` · ${d.tokens.in}→${d.tokens.out} tok` : "");
+    ans.appendChild(meta2);
     box.appendChild(ans);
     if (d.thread_id && !TID) { history.replaceState(null, "", "/assistant/" + d.thread_id); }
     if (d.used_today) document.getElementById("statusline").textContent =

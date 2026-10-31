@@ -1,0 +1,248 @@
+{% extends "base.html" %}{% block title %}Power log{% endblock %}
+{% block pagetitle %}Power management{% endblock %}
+{% block pagesub %}Day-duty power log — light, generator, inverter, solar, power tanks. Agentic entry + summary.{% endblock %}
+{% block body %}
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  /* ---------- power page: chat + table (responsive) ---------- */
+  .power-shell{display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:16px; margin-bottom:16px}
+  .power-main{min-width:0}
+  .power-sidebar{min-width:0}
+
+  .power-chat{display:flex; flex-direction:column; height:52vh; max-height:600px; border-radius:16px;
+    border:1px solid var(--line2); background:var(--glass2); backdrop-filter:blur(14px); overflow:hidden; box-shadow:var(--shadow)}
+  .power-msgs{flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px;
+    background:linear-gradient(180deg, rgba(10,16,32,.85), rgba(6,10,22,.9))}
+  .power-bubble{max-width:88%; padding:11px 15px; border-radius:14px; font-size:14.5px; line-height:1.5; word-wrap:break-word; position:relative}
+  .power-bubble.me{align-self:flex-end; background:linear-gradient(135deg, rgba(58,226,255,.2), rgba(124,92,255,.2)); border:1px solid var(--line2); color:#fff}
+  .power-bubble.ai{align-self:flex-start; background:rgba(255,255,255,.04); border:1px solid var(--line); color:var(--text)}
+  .power-bubble.system{align-self:center; max-width:100%; font-size:12px; color:var(--faint); text-align:center; padding:8px}
+  .power-bubble .meta{font-size:11px; color:var(--faint); margin-top:7px; border-top:1px solid rgba(255,255,255,.06); padding-top:7px}
+  .power-bubble .source-tag{font-family:var(--mono); font-size:11px; color:var(--cyan); font-weight:700}
+
+  .power-input-wrap{display:flex; gap:8px; align-items:flex-end; padding:12px; border-top:1px solid var(--line2);
+    background:rgba(6,10,22,.8); gap:10px}
+  .power-input-wrap input{flex:1; min-width:0; background:rgba(4,8,18,.8); color:var(--text); border:1px solid var(--line2); border-radius:12px; padding:11px 15px; font-size:15px; font-family:var(--font)}
+  .power-input-wrap input:focus{border-color:var(--cyan); box-shadow:0 0 0 3px rgba(58,226,255,.18); outline:none}
+  .power-input-wrap button{flex-shrink:0; min-width:100px}
+
+  /* ---------- summary panel ---------- */
+  .power-panel{border-radius:16px; border:1px solid var(--line2); background:var(--glass2); backdrop-filter:blur(14px); padding:14px; box-shadow:var(--shadow); height:fit-content}
+  .power-panel h3{margin:0 0 10px; font-size:16px; letter-spacing:-.4px; display:flex; align-items:center; gap:8px}
+  .power-panel .dot{width:8px; height:8px; border-radius:50%; background:var(--cyan); box-shadow:0 0 10px var(--cyan)}
+  .power-summary{background:rgba(255,255,255,.03); border:1px solid var(--line2); border-radius:12px; padding:14px; margin-bottom:14px}
+  .power-summary .big{font-size:20px; font-weight:800; color:var(--text)}
+  .power-summary .muted{font-size:12.5px; color:var(--muted); margin-top:4px}
+  .power-stat{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap}
+  .power-stat .item{flex:1 1 140px; padding:10px; border-radius:11px; background:rgba(255,255,255,.03); border:1px solid var(--line2)}
+  .power-stat .item .v{font-size:16px; font-weight:800; color:var(--cyan)}
+  .power-stat .item .k{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px}
+
+  /* ---------- table ---------- */
+  .power-table-wrap{overflow-x:auto; border-radius:12px; border:1px solid var(--line2); background:var(--glass2); backdrop-filter:blur(14px)}
+  table.power-table{width:100%; border-collapse:collapse; font-size:14px}
+  table.power-table th{font-size:11px; letter-spacing:1.6px; text-transform:uppercase; color:var(--faint); text-align:left; padding:10px 12px; border-bottom:1px solid var(--line2); background:rgba(6,10,22,.4)}
+  table.power-table td{padding:10px 12px; border-bottom:1px solid rgba(125,165,255,.09); vertical-align:top}
+  table.power-table tr:hover{background:rgba(90,169,255,.04)}
+  table.power-table tr.empty td{color:var(--muted); text-align:center; padding:24px}
+
+  .badge.source{font-size:10px; padding:3px 8px; border-radius:6px; background:rgba(124,92,255,.1); color:#b18cff; border:1px solid rgba(124,92,255,.3)}
+  .badge.source.manual{background:rgba(58,226,255,.1); color:#9be6ff; border:1px solid rgba(58,226,255,.3)}
+  .badge.source.agent{background:rgba(255,190,61,.15); color:#ffcf7a; border:1px solid rgba(255,190,61,.3)}
+
+  /* date picker bar */
+  .date-bar{display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap}
+  .date-bar input{background:rgba(4,8,18,.8); color:var(--text); border:1px solid var(--line2); border-radius:11px; padding:9px 13px; font-size:14px; min-width:150px}
+  .date-bar button{min-width:100px}
+
+  /* quick chips */
+  .chips{margin:10px 0 6px; display:flex; gap:8px; flex-wrap:wrap}
+  .chips button{flex:0 0 auto; background:rgba(255,255,255,.06); color:var(--text); border:1px solid var(--line2); border-radius:10px; padding:7px 12px; font-size:13px; cursor:pointer}
+  .chips button:hover{border-color:var(--line2); background:rgba(58,226,255,.12)}
+
+  /* ---------- responsive ---------- */
+  @media(max-width:1000px){
+    .power-shell{grid-template-columns:1fr}
+    .power-sidebar{display:none}
+    .power-chat{height:45vh}
+    .power-bubble{max-width:92%}
+  }
+  @media(max-width:560px){
+    .power-input-wrap{flex-direction:column}
+    .power-input-wrap button{width:100%}
+    .power-bubble{max-width:96%}
+    main{padding:14px}
+    table.power-table td, table.power-table th{padding:8px 10px; font-size:13px}
+  }
+</style>
+
+<div class="date-bar">
+  <label style="font-size:13px; color:var(--muted)">Date</label>
+  <input type="date" id="datePicker" value="{{ date }}">
+  <button onclick="goDate()" class="btn sm">Go</button>
+  <span style="margin-left:auto; font-size:12.5px; color:var(--muted)">{{ dates|length }} day(s) with reports</span>
+</div>
+
+<div class="grid2">
+  <!-- left: chat + table -->
+  <div class="power-main">
+    <!-- agent chat -->
+    <div class="card" style="margin-bottom:12px">
+      <h2 style="margin:0 0 8px">⚡ Log power event</h2>
+      <p class="muted" style="margin-top:0">Type naturally: “Generator switched OFF at 11:34 AM” or “Inverter battery ON, 71%”</p>
+
+      <div class="power-chat">
+        <div class="power-msgs" id="msgs">
+        {% for r in reports %}
+          <div class="power-bubble ai">
+            <div style="white-space:pre-wrap">{{ r.activity }}</div>
+            <div class="meta"><span class="source-tag">{{ r.source }}</span> · {{ r.event_time or 'time not stated' }} · {{ r.battery_level or 'level not stated' }} · by {{ r.created_by }}</div>
+          </div>
+        {% endfor %}
+        {% if agent_hint %}
+        <div class="power-bubble system">{{ agent_hint }}</div>
+        {% endif %}
+        </div>
+      </div>
+
+      <div class="chips">
+        <button onclick="fillQ('Generator switched OFF at 11:34 AM')">Gen OFF 11:34</button>
+        <button onclick="fillQ('Inverter battery switched ON at 3:30 PM, 71%')">Inverter ON 71%</button>
+        <button onclick="fillQ('Mains power restored at 6:00 PM')">Power restored</button>
+        <button onclick="fillQ('Solar charging, battery 85%')">Solar 85%</button>
+      </div>
+
+      <form id="powerForm" style="display:flex; gap:8px">
+        <input id="powerQ" name="question" placeholder="e.g. “Inverter battery switched ON at 8:06 AM, Inverter 24%, Kitchen 44%, Office 39%”" autocomplete="off" spellcheck="false">
+        <button type="submit" id="powerSend">Log</button>
+      </form>
+      <p class="muted" style="font-size:12px" id="powerStatus"></p>
+    </div>
+
+    <!-- reports table -->
+    <div class="card">
+      <h2 style="margin:0 0 8px">📋 {{ date }} — {{ reports|length }} event(s)</h2>
+      <div class="power-table-wrap">
+        <table class="power-table">
+          <thead>
+          <tr><th>Activity</th><th>Time</th><th>Battery level</th><th>Source</th><th>Logged by</th><th>Summary</th></tr>
+          </thead>
+          <tbody>
+          {% for r in reports %}
+          <tr>
+            <td><b>{{ r.activity }}</b></td>
+            <td class="mono">{{ r.event_time or '—' }}</td>
+            <td class="mono">{{ r.battery_level or '—' }}</td>
+            <td><span class="badge source {{ r.source }}">{{ r.source }}</span></td>
+            <td class="mono">{{ r.created_by }}</td>
+            <td>{{ r.summary or r.raw_text[:120] }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="empty">No power events for {{ date }} yet. Log one above.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- right: summary panel -->
+  <div class="power-sidebar power-main">
+    <div class="power-panel">
+      <h3><span class="dot"></span>Daily summary</h3>
+      <div class="power-summary">
+        <div class="big" id="summaryBig">{{ reports|length }} events</div>
+        <div class="muted" id="summaryText">No summary yet for {{ date }}.</div>
+      </div>
+      <div class="power-stat">
+        <div class="item"><div class="v" id="statFirst">—</div><div class="k">First event</div></div>
+        <div class="item"><div class="v" id="statLast">—</div><div class="k">Last event</div></div>
+        <div class="item"><div class="v" id="statInterruption">—</div><div class="k">Power interruption</div></div>
+      </div>
+      <button id="summaryBtn" class="btn sm" style="width:100%; margin-top:10px">Refresh summary</button>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h2>📖 How to log</h2>
+      <ul style="margin:8px 0 0; padding-left:18px; color:var(--muted); font-size:13px; line-height:1.6">
+        <li>Mention the source: light, big generator, small generator, inverter, solar, power tank</li>
+        <li>Include time: “at 11:34 AM” or “3:30 PM”</li>
+        <li>Include battery: “71%” or “Inverter: 24%, Kitchen: 44%, Office: 39%”</li>
+        <li>Example: “Generator switched OFF at 11:34 AM”</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+const CUR_DATE = "{{ date }}";
+function fillQ(t){ document.getElementById('powerQ').value = t; }
+function goDate(){
+  const d = document.getElementById('datePicker').value;
+  if(!d) return;
+  const parts = d.split('-');
+  const dd = parts[2] + '/' + parts[1] + '/' + parts[0];
+  location.href = '/power?date=' + encodeURIComponent(dd);
+}
+document.getElementById('datePicker').addEventListener('change', goDate);
+
+function renderBubble(text, cls){
+  const d = document.createElement('div');
+  d.className = 'power-bubble ' + cls;
+  d.textContent = text;
+  document.getElementById('msgs').appendChild(d);
+  document.getElementById('msgs').scrollTop = document.getElementById('msgs').scrollHeight;
+  return d;
+}
+
+async function loadSummary(){
+  try {
+    const r = await fetch('/api/power/summary?date=' + encodeURIComponent(CUR_DATE));
+    const d = await r.json();
+    document.getElementById('summaryBig').textContent = d.count + ' event(s)';
+    document.getElementById('summaryText').textContent = d.summary;
+    document.getElementById('statFirst').textContent = d.first_event || '—';
+    document.getElementById('statLast').textContent = d.last_event || '—';
+    document.getElementById('statInterruption').textContent = d.interruption || '—';
+  } catch(e){ console.error(e); }
+}
+document.getElementById('summaryBtn').addEventListener('click', loadSummary);
+
+// load summary on page load
+loadSummary();
+
+document.getElementById("powerForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const q = document.getElementById("powerQ");
+  const text = q.value.trim();
+  if (!text) return;
+  q.value = "";
+  renderBubble(text, "me");
+  const wait = renderBubble("parsing…", "ai");
+  document.getElementById("powerSend").disabled = true;
+
+  try {
+    const r = await fetch("/api/power/agent", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({question: text, report_date: CUR_DATE})
+    });
+    const d = await r.json();
+    wait.remove();
+    const ans = document.createElement("div");
+    ans.className = "power-bubble ai";
+    ans.innerHTML = "<div style='white-space:pre-wrap'><b>✓ Logged:</b> " + (d.summary || d.answer || "") + "</div>" +
+      "<div class='meta'><span class='source-tag'>" + (d.source || 'agent') + "</span> · " +
+      (d.event_time || '—') + " · " + (d.battery_level || '—') + " · by " + (d.created_by || '—') + "</div>";
+    document.getElementById("msgs").appendChild(ans);
+    document.getElementById("msgs").scrollTop = document.getElementById("msgs").scrollHeight;
+    if (d.used_today) document.getElementById("powerStatus").textContent =
+      `Agent calls used today: ${d.used_today}/${d.cap}`;
+    // refresh table
+    location.reload();
+  } catch (e) {
+    wait.textContent = "⚠ " + e;
+  }
+  document.getElementById("powerSend").disabled = false;
+});
+</script>
+{% endblock %}

