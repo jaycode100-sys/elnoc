@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}MyShift{% endblock %}
 {% block pagetitle %}MyShift — {{ shift }} shift{% endblock %}
-{% block pagesub %}Engineer notes for {{ date }} · power report required before shift close{% endblock %}
+{% block pagesub %}Engineer notes for {{ date_display }} · power report required before shift close{% endblock %}
 {% block body %}
 <link rel="stylesheet" href="/static/style.css">
 <style>
@@ -14,6 +14,7 @@
     display:flex; align-items:center; gap:12px; font-size:14.5px; font-weight:700}
   .gate-banner.ok{background:rgba(56,232,163,.15); border:1px solid rgba(56,232,163,.4); color:#7df0c0}
   .gate-banner.block{background:rgba(255,84,112,.18); border:1px solid rgba(255,84,112,.45); color:#ff8ba0}
+  .gate-banner.closed{background:rgba(124,92,255,.15); border:1px solid rgba(124,92,255,.4); color:#b18cff}
   .gate-banner .dot{width:10px; height:10px; border-radius:50%; flex-shrink:0;
     box-shadow:0 0 12px currentColor}
 
@@ -26,6 +27,7 @@
   .notes-form textarea:focus, .notes-form input:focus{border-color:var(--cyan); box-shadow:0 0 0 3px rgba(58,226,255,.18); outline:none}
   .notes-form textarea{min-height:90px; resize:vertical}
   .formrow{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .read-only{opacity:.6; pointer-events:none}
 
   /* whatsapp paste */
   .whatsapp-card{border-radius:16px; border:1px solid var(--line2); background:var(--glass2); backdrop-filter:blur(14px); padding:18px; margin-bottom:14px; box-shadow:var(--shadow)}
@@ -38,8 +40,10 @@
   /* notes list */
   .notes-list{display:flex; flex-direction:column; gap:8px}
   .note-item{padding:12px 14px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid var(--line2)}
-  .note-item .meta{font-size:11px; color:var(--faint); margin-bottom:4px; display:flex; gap:12px; flex-wrap:wrap}
+  .note-item .meta{font-size:11px; color:var(--faint); margin-bottom:4px; display:flex; gap:12px; flex-wrap:wrap; align-items:center}
   .note-item .meta .tag{font-family:var(--mono); color:var(--cyan)}
+  .note-item .meta .actions{margin-left:auto; display:flex; gap:6px}
+  .note-item .btn-sm{font-size:11px; padding:4px 8px; border-radius:6px}
   .note-item p{margin:4px 0 0; color:var(--text); font-size:14px; white-space:pre-wrap}
   .note-item .extra{margin-top:4px; color:var(--muted); font-size:13px}
 
@@ -52,18 +56,27 @@
   .shift-panel .stat .k{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px}
   .shift-panel .stat.power-ok .v{color:var(--ok)}
   .shift-panel .stat.power-block .v{color:var(--danger)}
-  .shift-panel .btn-close{width:100%; margin-top:12px}
+  .shift-panel .stat.closed .v{color:var(--violet)}
 
   /* chips */
   .chips{margin:10px 0 6px; display:flex; gap:8px; flex-wrap:wrap}
   .chips button{flex:0 0 auto; background:rgba(255,255,255,.06); color:var(--text); border:1px solid var(--line2); border-radius:10px; padding:7px 12px; font-size:13px; cursor:pointer}
   .chips button:hover{border-color:var(--line2); background:rgba(58,226,255,.12)}
+  .chips button:disabled{opacity:.5; cursor:not-allowed}
 
   /* date bar */
   .date-bar{display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap}
   .date-bar input{background:rgba(4,8,18,.8); color:var(--text); border:1px solid var(--line2); border-radius:11px; padding:9px 13px; font-size:14px; min-width:150px}
   .date-bar button{min-width:100px}
   .date-bar span.auto{margin-left:auto; font-size:12.5px; color:var(--muted)}
+
+  /* close button (main column, mobile-friendly) */
+  .close-bar{display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap}
+  .close-btn{flex:1; min-width:200px; padding:14px; font-size:15px; font-weight:700; border-radius:12px}
+  .close-btn.ok{background:rgba(56,232,163,.15); border:1px solid rgba(56,232,163,.4); color:#7df0c0}
+  .close-btn.block{background:rgba(255,84,112,.18); border:1px solid rgba(255,84,112,.45); color:#ff8ba0}
+  .close-btn.closed{background:rgba(124,92,255,.15); border:1px solid rgba(124,92,255,.4); color:#b18cff}
+  .close-btn:disabled{opacity:.5; cursor:not-allowed}
 
   /* ---------- responsive ---------- */
   @media(max-width:1000px){
@@ -74,6 +87,8 @@
     .formrow{grid-template-columns:1fr}
     .myshift-main{min-width:0}
     main{padding:14px}
+    .close-bar{flex-direction:column}
+    .close-btn{width:100%}
   }
 </style>
 
@@ -85,68 +100,102 @@
 </div>
 
 <!-- Shift close gate -->
-<div class="gate-banner {% if power_done %}ok{% else %}block{% endif %}">
+<div class="gate-banner {% if already_closed %}closed{% elif power_done %}ok{% else %}block{% endif %}">
   <div class="dot"></div>
-  <span id="gateText">{% if power_done %}✓ Power report logged — shift can close.{% else %}⚠ Power report required before shift close. Log power first.{% endif %}</span>
+  <span id="gateText">
+    {% if already_closed %}✓ Shift closed on {{ date_display }}
+    {% elif power_done %}✓ Power report logged — shift can close.
+    {% else %}⚠ Power report required before shift close. Log power first.
+    {% endif %}
+  </span>
+</div>
+
+<!-- Close button in main column (visible on mobile too) -->
+<div class="close-bar">
+  {% if already_closed %}
+  <button class="close-btn closed" disabled>✓ Shift closed</button>
+  {% elif power_done and notes|length > 0 %}
+  <button id="closeBtn" class="close-btn ok">✓ Close shift</button>
+  {% elif power_done and notes|length == 0 %}
+  <button id="closeBtn" class="close-btn block" disabled>
+    ⚠ Add a note first (or check "nothing to report")
+  </button>
+  {% else %}
+  <button id="closeBtn" class="close-btn block" disabled>
+    ⚠ Log power first
+  </button>
+  {% endif %}
+  <label style="margin-left:auto; font-size:13px; color:var(--muted); cursor:pointer; display:flex; align-items:center; gap:6px">
+    <input type="checkbox" id="nothingToReport"> Nothing to report this shift
+  </label>
 </div>
 
 <div class="myshift-shell">
   <!-- left: notes + whatsapp paste -->
-  <div class="myshift-main">
+  <div class="myshift-main {% if already_closed %}read-only{% endif %}">
     <!-- shift notes form -->
-    <div class="notes-card">
+    <div class="notes-card {% if already_closed %}read-only{% endif %}">
       <h2>📓 Shift notes — {{ shift }}</h2>
       <p class="muted" style="margin-top:0">What happened on your shift. Extra info is optional but recommended.</p>
 
-      <form id="noteForm" class="notes-form">
+      <form id="noteForm" class="notes-form {% if already_closed %}read-only{% endif %}">
         <div class="formrow">
           <div>
             <label>Engineer notes</label>
-            <textarea id="shiftNotes" placeholder="e.g. Handed over LTV8 Ikeja-RC to night team. Prec Pearl link still down."></textarea>
+            <textarea id="shiftNotes" placeholder="e.g. Handed over LTV8 Ikeja-RC to night team. Prec Pearl link still down." {% if already_closed %}disabled{% endif %}></textarea>
           </div>
           <div>
             <label>Extra information</label>
-            <textarea id="extraInfo" placeholder="Additional context, who you spoke to, next steps..."></textarea>
+            <textarea id="extraInfo" placeholder="Additional context, who you spoke to, next steps..." {% if already_closed %}disabled{% endif %}></textarea>
           </div>
         </div>
         <div>
           <label>Power status (optional here — full details in Power log)</label>
-          <input id="powerStatus" placeholder="e.g. Inverter 71%, generator off, mains restored">
+          <input id="powerStatus" placeholder="e.g. Inverter 71%, generator off, mains restored" {% if already_closed %}disabled{% endif %}>
         </div>
         <div class="chips">
-          <button type="button" onclick="fillNote('Power restored at 6:00 PM. All links stable.')">Power restored</button>
-          <button type="button" onclick="fillNote('Generator running. Inverter on battery since 4:00 PM.')">Gen on battery</button>
-          <button type="button" onclick="fillNote('Handover complete. Night team aware of open cases.')">Handover done</button>
+          <button type="button" onclick="fillNote('Power restored at 6:00 PM. All links stable.')" {% if already_closed %}disabled{% endif %}>Power restored</button>
+          <button type="button" onclick="fillNote('Generator running. Inverter on battery since 4:00 PM.')" {% if already_closed %}disabled{% endif %}>Gen on battery</button>
+          <button type="button" onclick="fillNote('Handover complete. Night team aware of open cases.')" {% if already_closed %}disabled{% endif %}>Handover done</button>
         </div>
-        <button type="submit" id="noteSend" class="btn">Save shift note</button>
+        <button type="submit" id="noteSend" class="btn" {% if already_closed %}disabled{% endif %}>Save shift note</button>
       </form>
       <p class="muted" style="font-size:12px; margin-top:8px" id="noteStatus"></p>
     </div>
 
     <!-- existing notes -->
     <div class="card">
-      <h2 style="margin:0 0 8px">📋 Your notes for {{ date }}</h2>
+      <h2 style="margin:0 0 8px">📋 Your notes for {{ date_display }}</h2>
       <div class="notes-list" id="notesList">
       {% for n in notes %}
-        <div class="note-item">
-          <div class="meta"><span class="tag">{{ n.shift }}</span> · {{ n.created_at[11:16] }} · by {{ n.engineer }}</div>
+        <div class="note-item {% if already_closed %}read-only{% endif %}">
+          <div class="meta">
+            <span class="tag">{{ n.shift }}</span>
+            <span>{{ n.created_at[11:16] }}</span>
+            <span class="actions">
+              {% if not already_closed %}
+              <button class="btn-sm" onclick="editNote({{ n.id }}, this)">Edit</button>
+              <button class="btn-sm" style="background:rgba(255,84,112,.15);color:#ff8ba0;border-color:rgba(255,84,112,.4)" onclick="deleteNote({{ n.id }})">Delete</button>
+              {% endif %}
+            </span>
+          </div>
           <p>{{ n.notes }}</p>
           {% if n.extra_info %}<div class="extra">Extra: {{ n.extra_info }}</div>{% endif %}
           {% if n.power_status %}<div class="extra">Power: {{ n.power_status }}</div>{% endif %}
         </div>
       {% else %}
-        <div class="note-item" style="color:var(--muted); text-align:center; padding:24px">No notes yet for {{ shift }} shift on {{ date }}.</div>
+        <div class="note-item" style="color:var(--muted); text-align:center; padding:24px">No notes yet for {{ shift }} shift on {{ date_display }}.</div>
       {% endfor %}
       </div>
     </div>
 
     <!-- WhatsApp paste-in -->
-    <div class="whatsapp-card">
+    <div class="whatsapp-card {% if already_closed %}read-only{% endif %}">
       <h2>💬 WhatsApp paste-in</h2>
       <p class="muted">Paste an escalation, update, or any chat text. ELNOC logs it as a shift note.</p>
-      <textarea id="waPaste" placeholder="Paste WhatsApp conversation here…"></textarea>
+      <textarea id="waPaste" placeholder="Paste WhatsApp conversation here…" {% if already_closed %}disabled{% endif %}></textarea>
       <div class="whatsapp-actions">
-        <button type="button" id="waSend" class="btn">Log from WhatsApp</button>
+        <button type="button" id="waSend" class="btn" {% if already_closed %}disabled{% endif %}>Log from WhatsApp</button>
         <button type="button" onclick="document.getElementById('waPaste').value=''" class="btn sm ghost">Clear</button>
       </div>
       <p class="muted" style="font-size:12px; margin-top:8px" id="waStatus"></p>
@@ -157,8 +206,8 @@
   <div class="myshift-sidebar">
     <div class="shift-panel">
       <h3><span class="dot"></span>Shift status</h3>
-      <div class="stat {% if power_done %}power-ok{% else %}power-block{% endif %}">
-        <div class="v">{% if power_done %}✓ DONE{% else %}⚠ PENDING{% endif %}</div>
+      <div class="stat {% if already_closed %}closed{% elif power_done %}power-ok{% else %}power-block{% endif %}">
+        <div class="v">{% if already_closed %}✓ CLOSED{% elif power_done %}✓ DONE{% else %}⚠ PENDING{% endif %}</div>
         <div class="k">Power report</div>
       </div>
       <div class="stat">
@@ -170,15 +219,15 @@
         <div class="k">Current shift</div>
       </div>
       <div class="stat">
-        <div class="v">{{ date }}</div>
+        <div class="v">{{ date_display }}</div>
         <div class="k">Date</div>
       </div>
       {% if not power_done %}
       <p class="muted" style="font-size:12px; margin-top:10px">Go to <b>Power log</b> and log today's power before closing this shift.</p>
       {% endif %}
-      <button id="closeBtn" class="btn btn-close {% if not power_done %}btn.ghost{% endif %}" {% if not power_done %}disabled{% endif %}>
-        {% if power_done %}✓ Close shift{% else %}Close shift (locked){% endif %}
-      </button>
+      {% if already_closed %}
+      <p class="muted" style="font-size:12px; margin-top:10px; color:var(--violet)">Shift is closed. Notes are read-only.</p>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -187,14 +236,13 @@
 const CUR_DATE = "{{ date }}";
 const POWER_DONE = {{ "true" if power_done else "false" }};
 const CUR_SHIFT = "{{ shift }}";
+const ALREADY_CLOSED = {{ "true" if already_closed else "false" }};
 
 function fillNote(t){ document.getElementById('shiftNotes').value = t; }
 function goDate(){
   const d = document.getElementById('datePicker').value;
   if(!d) return;
-  const parts = d.split('-');
-  const dd = parts[2] + '/' + parts[1] + '/' + parts[0];
-  location.href = '/myshift?date=' + encodeURIComponent(dd);
+  location.href = '/myshift?date=' + encodeURIComponent(d);
 }
 document.getElementById('datePicker').addEventListener('change', goDate);
 
@@ -225,6 +273,47 @@ document.getElementById("noteForm").addEventListener("submit", async (ev) => {
   btn.disabled = false;
 });
 
+// Edit note (inline)
+window.editNote = async (id, btn) => {
+  const item = btn.closest('.note-item');
+  const p = item.querySelector('p');
+  const current = p.textContent;
+  const input = document.createElement('textarea');
+  input.value = current;
+  input.style.width = '100%';
+  input.style.minHeight = '60px';
+  p.replaceWith(input);
+  input.focus();
+  const save = async () => {
+    const val = input.value.trim();
+    if(!val) { input.replaceWith(p); return; }
+    try {
+      const r = await fetch(`/api/myshift/note/${id}`, {
+        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({notes: val})
+      });
+      const d = await r.json();
+      if(d.error) { alert('⚠ ' + d.error); input.replaceWith(p); }
+      else {
+        p.textContent = d.notes;
+        location.reload();
+      }
+    } catch(e) { alert('⚠ ' + e); input.replaceWith(p); }
+  };
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); } });
+};
+
+window.deleteNote = async (id) => {
+  if(!confirm('Delete this note?')) return;
+  try {
+    const r = await fetch(`/api/myshift/note/${id}`, { method: 'DELETE' });
+    const d = await r.json();
+    if(d.error) { alert('⚠ ' + d.error); }
+    else { location.reload(); }
+  } catch(e) { alert('⚠ ' + e); }
+};
+
 // WhatsApp paste-in
 document.getElementById("waSend").addEventListener("click", async () => {
   const raw = document.getElementById("waPaste").value.trim();
@@ -247,12 +336,21 @@ document.getElementById("waSend").addEventListener("click", async () => {
   btn.disabled = false;
 });
 
-// Close shift (only if power done)
+// Close shift (enforced gate)
 document.getElementById("closeBtn").addEventListener("click", async () => {
+  if(ALREADY_CLOSED) return;
   if(!POWER_DONE){ alert("Power report required before shift close."); return; }
-  if(confirm("Close the {{ shift }} shift for {{ date }}? This marks the shift as complete.")) {
-    alert("Shift closed. You can still add notes, but power is confirmed logged.");
-  }
+  const nothingToReport = document.getElementById("nothingToReport").checked;
+  if(!confirm(`Close the ${CUR_SHIFT} shift for ${CUR_DATE}? This marks the shift as complete and notes become read-only.`)) return;
+  try {
+    const r = await fetch("/api/myshift/close", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({nothing_to_report: nothingToReport})
+    });
+    const d = await r.json();
+    if(d.error) { alert("⚠ " + d.error); }
+    else { location.reload(); }
+  } catch(e) { alert("⚠ " + e); }
 });
 </script>
 {% endblock %}

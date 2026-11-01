@@ -422,17 +422,42 @@ class HandoverImport(Base):
 
 # ---------------------------------------------------------------- Shift notes (MyShift)
 class ShiftNote(Base):
-    """Engineer's per-shift notes + extra information. One per engineer per
-    shift per date. Used for the MyShift shift-close gate."""
+    """Engineer's per-shift notes + extra information.
+    
+    Timeline semantics: one row per entry. An engineer can have multiple
+    notes for the same date+shift; notes can be edited/deleted until shift
+    close, after which they are read-only (admin reopen excepted).
+    """
     __tablename__ = "shift_note"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     engineer: Mapped[str] = mapped_column(String(200), default="")
-    shift_date: Mapped[str] = mapped_column(String(20), default="")   # DD/MM/YYYY Lagos
+    shift_date: Mapped[str] = mapped_column(String(20), default="")   # YYYY-MM-DD Lagos (ISO)
     shift: Mapped[str] = mapped_column(String(20), default="day")     # day|night
     notes: Mapped[str] = mapped_column(Text, default="")              # what happened
     extra_info: Mapped[str] = mapped_column(Text, default="")         # extra context
     power_status: Mapped[str] = mapped_column(String(200), default="")  # battery / power summary
+    source: Mapped[str] = mapped_column(String(20), default="manual") # manual|whatsapp|pane
+    case_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # optional case link
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_default)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ShiftClose(Base):
+    """Audit record of a shift close. One per engineer per date+shift.
+
+    Created by POST /api/myshift/close after the gate passes (power report
+    exists for the date, and at least one note or explicit nothing-to-report).
+    """
+    __tablename__ = "shift_close"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    engineer: Mapped[str] = mapped_column(String(200), default="")
+    shift_date: Mapped[str] = mapped_column(String(20), default="")   # YYYY-MM-DD Lagos (ISO)
+    shift: Mapped[str] = mapped_column(String(20), default="day")     # day|night
+    power_report_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FK to power_report
+    nothing_to_report: Mapped[bool] = mapped_column(Boolean, default=False)
+    override_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_default)
+
 
 
 # ---------------------------------------------------------------- Power reports

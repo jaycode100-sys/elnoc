@@ -5,6 +5,7 @@ POST /ack/{token}  — perform the acknowledgement.
 
 Token expiry is enforced; expired tokens cannot be acknowledged.
 """
+import os
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -17,8 +18,6 @@ from ..utils_time import utcnow
 router = APIRouter()
 
 ACK_TOKEN_TTL_HOURS = int(os.environ.get("ACK_TOKEN_TTL_HOURS", "24") or "24")
-
-import os
 
 @router.get("/ack/{token}", response_class=HTMLResponse)
 def ack_confirm(token: str, request: Request, db: Session = Depends(get_db)):

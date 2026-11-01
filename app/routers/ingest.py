@@ -12,11 +12,12 @@ from __future__ import annotations
 import time
 from collections import defaultdict
 from fastapi import APIRouter, Depends, Request, Header
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pathlib import Path
 from ..database import get_db
+from ..security import get_current_user
 from ..adapters import prtg, zabbix, smartolt, mailbox
 from ..services.ingestion import ingest_events
 from ..services.heartbeat import record_run, stale_sources

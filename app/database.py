@@ -101,6 +101,27 @@ def ensure_columns() -> None:
             if name not in acols:
                 conn.exec_driver_sql(
                     f"ALTER TABLE attachment ADD COLUMN {name} {ddl}")
+        # ShiftNote new columns (source, case_id, updated_at)
+        sncols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(shift_note)")]
+        for name, ddl in (("source", "VARCHAR(20) DEFAULT 'manual'"),
+                          ("case_id", "INTEGER"),
+                          ("updated_at", "TIMESTAMP")):
+            if name not in sncols:
+                conn.exec_driver_sql(
+                    f"ALTER TABLE shift_note ADD COLUMN {name} {ddl}")
+        # Create shift_close table if not exists
+        conn.exec_driver_sql("""
+        CREATE TABLE IF NOT EXISTS shift_close (
+            id INTEGER PRIMARY KEY,
+            engineer VARCHAR(200) DEFAULT '',
+            shift_date VARCHAR(20) DEFAULT '',
+            shift VARCHAR(20) DEFAULT 'day',
+            power_report_id INTEGER,
+            nothing_to_report INTEGER DEFAULT 0,
+            override_reason TEXT,
+            closed_at TIMESTAMP
+        )
+        """)
 
 def get_db():
     db = SessionLocal()
