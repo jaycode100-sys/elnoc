@@ -2,23 +2,111 @@ name: elnoc-ci
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
   pull_request:
+    branches: ["main"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
-  test:
+  # ---------------------------------------------------------------- lint + type
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9afc83  # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea73183ed9d3a05abd952195ab4388  # v5.3.0
         with:
           python-version: "3.14"
-      - run: pip install -r requirements.txt
-      - run: python -m pytest tests -q
+      - run: pip install ruff
+      - run: ruff check .
+      - run: ruff format --check .
 
-  image:
+  # ---------------------------------------------------------------- type check
+  typecheck:
     runs-on: ubuntu-latest
-    needs: test
     steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t elnoc:${{ github.sha }} .
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9afc83
+      - uses: actions/setup-python@0b93645e9fea73183ed9d3a05abd952195ab4388
+        with:
+          python-version: "3.14"
+      - run: pip install mypy
+      - run: mypy app/
+
+  # ---------------------------------------------------------------- tests (SQLite + Postgres)
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16@sha256:8d221523a747473c5ec0c4f3a7b8f4a0d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: elnoc_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9afc83
+      - uses: actions/setup-python@0b93645e9fea73183ed9d3a05abd952195ab4388
+        with:
+          python-version: "3.14"
+      - run: pip install -r requirements.txt pytest pytest-cov
+      - run: python -m pytest tests -q --cov=app --cov-report=term --cov-fail-under=80
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/elnoc_test
+          ELNOC_DB_PATH: ./data/elnoc_test.db
+      - run: python -m pytest tests -q
+        env:
+          DATABASE_URL: ""
+          ELNOC_DB_PATH: ./data/elnoc_test.db
+
+  # ---------------------------------------------------------------- security scanning
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9afc83
+      - name: CodeQL
+        uses: github/codeql-action/init@1f4d735c653207c54277e9a039b049035219e880  # v3.27.3
+        with:
+          languages: python
+      - name: CodeQL analyze
+        uses: github/codeql-action/analyze@1f4d735c653207c54277e9a039b049035219e880
+      - name: pip-audit
+        uses: actions/setup-python@0b93645e9fea73183ed9d3a05abd952195ab4388
+        with:
+          python-version: "3.14"
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@e0707b2467098d299e28e945b70d28f917c49b1a  # v2.0.1
+        with:
+          args: --verbose --report-format json --report-path gitleaks-report.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------- docker build + scan
+  docker:
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9afc83
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c38a795a9c4e95e69cb160955f3369e01c96c7b4  # v3.10.0
+      - name: Build image
+        run: docker build -t elnoc:${{ github.sha }} .
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@29b52620113e2b0e6c8c41c9f9a6f90b0a6e2f0b  # v0.24.0
+        with:
+          image-ref: "elnoc:${{ github.sha }}"
+          format: "table"
+          exit-code: "1"
+          severity: "CRITICAL,HIGH"

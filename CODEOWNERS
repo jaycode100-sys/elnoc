@@ -1,0 +1,28 @@
+# Code owners
+
+# Default owners for everything
+*       @jaycode100-sys
+
+# Security-related files
+/.github/dependabot.yml   @jaycode100-sys
+SECURITY.md               @jaycode100-sys
+app/security.py           @jaycode100-sys
+app/services/superadmin.py @jaycode100-sys
+app/routers/auth.py       @jaycode100-sys
+
+# MyShift
+app/routers/myshift.py    @jaycode100-sys
+app/templates/myshift.html @jaycode100-sys
+
+# Power
+app/routers/power.py      @jaycode100-sys
+app/templates/power.html  @jaycode100-sys
+
+# AI assistant
+app/routers/assistant.py  @jaycode100-sys
+app/services/agent_tools.py @jaycode100-sys
+
+# Installer
+build_elnoc_installer.iss @jaycode100-sys
+build_elnoc_installer.ps1 @jaycode100-sys
+sign_elnoc.ps1            @jaycode100-sys
