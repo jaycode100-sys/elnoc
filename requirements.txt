@@ -9,3 +9,4 @@ python-dotenv>=1.0
 pytest>=8.0
 tzdata>=2024.1  # Windows ZoneInfo (Africa/Lagos)
 psycopg[binary]>=3.1  # only needed when DATABASE_URL targets Postgres/Supabase
+alembic>=1.13  # schema migrations
