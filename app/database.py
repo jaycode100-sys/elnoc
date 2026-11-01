@@ -5,13 +5,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-from .config import settings
-
-
-def _res(p):
-    if hasattr(sys, '_MEIPASS'):
-        return os.path.join(sys._MEIPASS, p)
-    return os.path.abspath(p)
+from .config import settings, _res
 
 
 class Base(DeclarativeBase):

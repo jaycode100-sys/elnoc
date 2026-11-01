@@ -19,3 +19,10 @@ tunnel-token.txt
 signing/
 # Auto-generated before each PyInstaller build
 version_elnoc.txt
+
+# Build artifacts - never commit
+Output/
+build/
+dist/
+server.err
+server.out

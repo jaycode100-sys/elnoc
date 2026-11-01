@@ -1,14 +1,14 @@
 """Permanent superadmin profile.
 
-Stored in %LOCALAPPDATA%\ELNOC\superadmin.json — outside the app directory —
-so it survives uninstall/reinstall and the /api/admin/clear-data wipe.
+Stored outside the app directory so it survives uninstall/reinstall and the
+/api/admin/clear-data wipe.
 
-Superadmin bypasses normal user lookup: always active, always role=admin,
-password verified against the stored hash. Cannot be deleted via clear-data.
+No default password is ever used. On first run without ELNOC_SUPERADMIN_PASSWORD,
+a random password is generated, printed once to stdout, and stored.
 """
 from __future__ import annotations
 
-import hashlib, hmac, json, os, secrets
+import hashlib, hmac, json, os, secrets, sys
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -27,7 +27,11 @@ def _hash_pw(password: str, salt: str | None = None) -> tuple[str, str]:
 
 
 def ensure_superadmin() -> dict:
-    """Ensure a permanent superadmin exists. Returns {username, password_hash, salt}."""
+    """Ensure a permanent superadmin exists. Returns {username, password_hash, salt}.
+
+    No default password. On first run without ELNOC_SUPERADMIN_PASSWORD, a
+    random password is generated, printed once to stdout, and persisted.
+    """
     p = _superadmin_path()
     if p.exists():
         try:
@@ -36,14 +40,20 @@ def ensure_superadmin() -> dict:
                 return data
         except Exception:
             pass
-    # Create default superadmin: username 'superadmin', password 'ELNOC-super-2026'
+
     username = "superadmin"
-    password = os.getenv("ELNOC_SUPERADMIN_PASSWORD", "ELNOC-super-2026")
+    password = os.getenv("ELNOC_SUPERADMIN_PASSWORD")
+    if not password:
+        password = secrets.token_urlsafe(24)
+        print("\n" + "=" * 70)
+        print("SUPERADMIN CREATED — password printed ONCE, not stored in plaintext:")
+        print(f"  username: {username}")
+        print(f"  password: {password}")
+        print("=" * 70 + "\n", file=sys.stderr)
     pw_hash, salt = _hash_pw(password)
     data = {"username": username, "password_hash": pw_hash, "salt": salt,
             "created_at": datetime.now(timezone.utc).isoformat()}
     p.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    # Restrictive permissions: owner read/write only (Windows: ignore)
     return data
 
 

@@ -181,11 +181,10 @@ Already done and verified:
 
 The connection string (already in `.env` as `DATABASE_URL`):
 ```
-postgresql+psycopg://postgres.wopgyzrrfjewdasnantk:<url-encoded-password>@aws-0-eu-west-2.pooler.supabase.com:6543/postgres
+postgresql+psycopg://postgres.<project-ref>.aws-0-<region>.pooler.supabase.com:6543/postgres
 ```
 Two details that will bite you if you forget them:
-- **Encode the password.** `#` → `%23`, `%` → `%25`. The current password
-  starts with `%b2_`, so it must appear as `%25b2_…`.
+- **Encode the password.** Special characters must be URL-encoded.
 - **Port 6543** is the transaction pooler. The app sets
   `prepare_threshold=None` because the pooler rejects client-side prepared
   statements — that is already handled in code; don't remove it.

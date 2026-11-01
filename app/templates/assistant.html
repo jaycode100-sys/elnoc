@@ -189,7 +189,10 @@ document.getElementById("askform").addEventListener("submit", async (ev) => {
     wait.remove();
     const ans = document.createElement("div");
     ans.className = "bubble ai";
-    ans.innerHTML = "<div style='white-space:pre-wrap'>" + (d.answer || "") + "</div>";
+    const content = document.createElement("div");
+    content.style.whiteSpace = "pre-wrap";
+    content.textContent = d.answer || "";
+    ans.appendChild(content);
     if (d.steps && d.steps.length) {
       const meta = document.createElement("div"); meta.className = "meta";
       meta.textContent = "Agent used " + d.steps.length + " tool step(s)";

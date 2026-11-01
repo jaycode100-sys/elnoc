@@ -1,10 +1,12 @@
 """ELNOC server — one company-controlled FastAPI app + scheduler-separated alerting."""
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from .database import init_db
 from .seed import seed_all
 from .database import SessionLocal
+from .config import settings
 
 app = FastAPI(title="ELNOC", version="0.1.0")
 
@@ -34,19 +36,27 @@ app.include_router(myshift.router)
 app.include_router(customers_api.router)
 app.include_router(clear_data.router)
 
-@app.on_event("startup")
-def _startup():
-    from .config import settings as _s
-    if _s.SECRET_KEY in ("dev-only-change-me-please-0123456789",
-                         "change-me-to-32-random-chars-minimum"):
-        print("!!! ELNOC: ELNOC_SECRET_KEY is still the documented default — "
-              "sessions can be forged. Set a random value in .env before hosting.")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Refuse to start with an insecure SECRET_KEY — sessions can be forged.
+    if not settings.SECRET_KEY or len(settings.SECRET_KEY) < 32:
+        raise RuntimeError(
+            "ELNOC_SECRET_KEY is missing or shorter than 32 characters. "
+            "Set a strong random value (e.g. `openssl rand -hex 32`) in .env "
+            "before starting the server."
+        )
     init_db()
     db = SessionLocal()
     try:
         seed_all(db)
     finally:
         db.close()
+    yield
+
+
+app.router.lifespan_context = lifespan
+
 
 @app.exception_handler(LoginRequired)
 async def _login_gate(request, exc: LoginRequired):
@@ -54,6 +64,7 @@ async def _login_gate(request, exc: LoginRequired):
     from urllib.parse import quote
     return RedirectResponse(url=f"/login?next={quote(exc.next_url, safe='/')}",
                             status_code=303)
+
 
 @app.get("/", response_class=None)
 def landing(request: Request):
@@ -78,9 +89,11 @@ def landing(request: Request):
     finally:
         db.close()
 
+
 @app.get("/health")
 def health():
     return {"ok": True, "app": "ELNOC"}
+
 
 def _logo_candidates():
     """Logo sources, best first: root ELNOC.png, else the bundled app icon.
@@ -91,6 +104,7 @@ def _logo_candidates():
         if p.exists() and p not in seen:
             seen.append(p)
     return seen
+
 
 def _logo_response(cache: bool = False):
     from fastapi.responses import FileResponse
@@ -103,10 +117,12 @@ def _logo_response(cache: bool = False):
     headers = {"Cache-Control": "public, max-age=86400"} if cache else {}
     return FileResponse(str(path), media_type=media, headers=headers)
 
+
 @app.get("/logo.png")
 def logo():
     """Solution logo for headers/rails (served from the root ELNOC.png)."""
     return _logo_response()
+
 
 @app.get("/favicon.ico")
 def favicon():

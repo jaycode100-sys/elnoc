@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pathlib import Path
 import csv, io
+import re
 from ..database import get_db
 from ..models import Customer, Link, Contact, EscalationRule, AppUser, MaintenanceWindow, SiteDevice, Case
 from ..security import get_current_user, require_role, hash_password, audit
@@ -13,6 +14,8 @@ from ..services.reports import weekly_report
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+
+USERNAME_RX = re.compile(r"^[A-Za-z0-9_.-]{3,32}$")
 
 @router.get("/admin", response_class=HTMLResponse)
 def admin_home(request: Request, user=Depends(require_role("admin", "senior", "manager")),
@@ -76,9 +79,18 @@ def add_window(target_type: str = Form("device"), target: str = Form(""),
 def add_user(username: str = Form(""), name: str = Form(""), role: str = Form("engineer"),
              password: str = Form(""), user=Depends(require_role("admin")),
              db: Session = Depends(get_db)):
-    h, s = hash_password(password or "changeme")
-    db.add(AppUser(username=username.strip(), name=name.strip(), role=role,
-                   active=True, password_hash=h, password_salt=s))
+    username = username.strip()
+    if not username:
+        return RedirectResponse(url="/admin?error=username_required", status_code=303)
+    if not USERNAME_RX.match(username):
+        return RedirectResponse(url="/admin?error=invalid_username", status_code=303)
+    if not password or len(password) < 8:
+        return RedirectResponse(url="/admin?error=password_too_short", status_code=303)
+    if role not in ("engineer", "senior", "manager", "admin"):
+        return RedirectResponse(url="/admin?error=invalid_role", status_code=303)
+    h, s = hash_password(password)
+    db.add(AppUser(username=username, name=name.strip() or username,
+                   role=role, active=True, password_hash=h, password_salt=s))
     db.commit()
     return RedirectResponse(url="/admin", status_code=303)
 

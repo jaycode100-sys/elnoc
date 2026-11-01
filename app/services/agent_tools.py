@@ -141,7 +141,8 @@ def tool_interpret_rsl(rsl_dbm: float, optic_model: str = "") -> dict:
 def tool_create_case(symptom: str, link_name: str, severity: str = "major",
                      link_state: str = "down", db: Session = None,
                      current_user: str = "") -> dict:
-    """Create a new NOC case. Only fires when the user explicitly asks to log one."""
+    """Create a new NOC case. Returns a pending_action for user approval —
+    does NOT create the case server-side. The UI must confirm before writing."""
     hit = find_secret(symptom + " " + link_name)
     if hit:
         return {"tool": "create_case", "error": f"Blocked: possible secret ({hit})."}
@@ -149,16 +150,27 @@ def tool_create_case(symptom: str, link_name: str, severity: str = "major",
     if not link:
         return {"tool": "create_case", "error": f"Link “{link_name}” not found — cannot create case."}
     cust = db.get(Customer, link.customer_id) if link.customer_id else None
-    case = Case(engineer=current_user or "agent", customer_id=cust.id if cust else None,
-                link_id=link.id, symptom=symptom, status="open",
-                severity=severity, link_state=link_state, opened_by="agent", opened_at=utcnow())
-    db.add(case); db.flush()
-    db.add(CaseEvent(case_id=case.id, at=utcnow(), engineer=current_user or "agent",
-                     kind="note", text=f"Agent-created case: {symptom}"))
-    db.commit()
-    return {"tool": "create_case", "case_id": case.id, "link": link.name,
-            "customer": cust.name if cust else "—", "symptom": symptom,
-            "summary": f"Case #{case.id} created for {link.name} — “{symptom}”."}
+    # Return a pending action — the case is NOT created yet.
+    # The UI must call POST /api/assistant/confirm-case with the pending_action_id.
+    import uuid
+    pending_id = str(uuid.uuid4())
+    return {
+        "tool": "create_case",
+        "pending": True,
+        "pending_action_id": pending_id,
+        "action": "create_case",
+        "symptom": symptom,
+        "link_name": link.name,
+        "link_id": link.id,
+        "customer": cust.name if cust else "—",
+        "customer_id": cust.id if cust else None,
+        "severity": severity,
+        "link_state": link_state,
+        "requested_by": current_user or "agent",
+        "summary": f"Pending: create case #{'?'} for {link.name} — “{symptom}” "
+                   f"(severity: {severity}, state: {link_state}). "
+                   f"Confirm to create.",
+    }
 
 
 def tool_acknowledge_case(case_id: int, db: Session) -> dict:

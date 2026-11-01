@@ -9,7 +9,7 @@ When a link is set UP, ELNOC CHALLENGES the engineer for resolution evidence
 the case stays flagged until something lands.
 """
 from __future__ import annotations
-import hashlib
+import hashlib, os
 from pathlib import Path
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -24,6 +24,9 @@ EVIDENCE_DIR = Path("evidence")
 EVIDENCE_DIR.mkdir(exist_ok=True)
 
 MAX_BYTES = 15 * 1024 * 1024
+
+# Allowed evidence file extensions — images, PDFs, text logs only
+ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".txt", ".csv", ".sor"}
 
 RESOLUTION_PROMPTS = [
     "PRTG utilisation graph for the recovered window",
@@ -97,6 +100,13 @@ async def add_evidence(case_id: int, request: Request,
     data = await file.read()
     if len(data) > MAX_BYTES:
         return HTMLResponse("Evidence file too large (15 MB max).", status_code=400)
+    # Extension allowlist
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        return HTMLResponse(
+            f"File type '{ext}' not allowed. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
+            status_code=400,
+        )
     digest = hashlib.sha256(data).hexdigest()
     safe = "".join(c for c in (file.filename or "evidence")
                    if c.isalnum() or c in "._-")[:120] or "evidence"
@@ -124,6 +134,13 @@ def delete_evidence(case_id: int, att_id: int, user=Depends(get_current_user),
                     db: Session = Depends(get_db)):
     att = db.get(Attachment, att_id)
     if att and att.case_id == case_id and user.role in ("senior", "admin"):
+        # Remove the physical file too
+        try:
+            p = Path(att.stored_path)
+            if p.exists():
+                p.unlink()
+        except OSError:
+            pass
         db.delete(att)
         db.commit()
     return RedirectResponse(url=f"/cases/{case_id}", status_code=303)

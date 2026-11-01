@@ -1,12 +1,7 @@
 # ELNOC — MVP through pilot (secs 5–14 of the design)
 
-**Live links:** public → `https://browse-famous-copying-administered.trycloudflare.com`
-(team + WhatsApp ack links) · NOC LAN → `http://10.10.10.2:8000` (or `http://172.16.100.17:8000` over Wi-Fi).
-The public URL is a Cloudflare quick tunnel: free and instant, but it **changes
-whenever the tunnel restarts** — for a permanent address, set up a named tunnel
-(`cloudflared tunnel login` + DNS) or move to the team VM. Keep
-`ELNOC_BASE_URL` in `.env` pointing at the current public URL so ack/message
-links resolve on recipients' phones.
+**Public URL:** set via `ELNOC_BASE_URL` in `.env` (point it at your Cloudflare
+tunnel or domain). **NOC LAN:** `http://<your-host>:8000`.
 
 **Survive reboots** (needs an elevated prompt once):
 `tools\run_server.bat` (uvicorn, single worker) + `tools\cloudflared.exe tunnel
@@ -26,8 +21,10 @@ ticket; ELNOC is the team-facing working twin (`phoenix_ticket_no` links them).
 python -m venv .venv; .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 copy .env.example .env   # fill secrets; never commit .env
+# Generate a strong secret: openssl rand -hex 32
+# Set ELNOC_SECRET_KEY, ELNOC_SUPERADMIN_PASSWORD, ADMIN_EMAIL_DOMAINS in .env
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-# login: admin / elnoc-admin  (change immediately in Admin)
+# First run creates a random superadmin password — print it once and save it.
 ```
 
 Schedulers (alerting runs **separately** from the UI, NFR-03):

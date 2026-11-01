@@ -8,9 +8,9 @@
 # Build pipeline: build_elnoc_installer.ps1 calls this automatically after each build.
 #
 # NOTE: self-signed cert = signs binaries, but strangers will still see the
-# SmartScreen prompt unless they run `.\sign_elnoc.ps1 -Trust` (or double-click
-# signing\ELNOC.cer -> Install Certificate -> Current User). For real mass
+# SmartScreen prompt unless they run `.\sign_elnoc.ps1 -Trust`. For real mass
 # distribution trust, use Azure Trusted Sign or a commercial code-signing cert.
+# Keep the PFX password in a password manager or CI secret — never in a README.
 
 param(
     [string[]]$Files,

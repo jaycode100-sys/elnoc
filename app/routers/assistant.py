@@ -28,6 +28,13 @@ from ..utils_time import utcnow, ensure_utc
 from datetime import timedelta
 import json as _json
 import re
+import uuid as _uuid
+import time
+
+# Pending agent actions awaiting user confirmation (create_case, etc.)
+# In production, this should be backed by Redis or the database.
+_PENDING_ACTIONS: dict[str, dict] = {}
+_PENDING_ACTION_TTL_SECONDS = 900  # 15 minutes
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -312,6 +319,11 @@ def _run_agent(q: str, db: Session, user, case_id: Optional[int] = None) -> dict
             result = fn(**call_kwargs)
         except TypeError as e:
             result = {"error": f"bad args for {tool_name}: {e}"}
+        # Store pending actions for user confirmation
+        if isinstance(result, dict) and result.get("pending"):
+            _PENDING_ACTIONS[result["pending_action_id"]] = {
+                **result, "created_at": time.time(),
+            }
         steps.append({"tool": tool_name, "reason": reason, "args": args, "result": result})
         messages.append({"role": "user",
                          "content": f"Tool result for {tool_name}: {_json.dumps(result)[:1500]}. "
@@ -371,6 +383,44 @@ def agent_chat(payload: dict, db: Session = Depends(get_db),
                          "offline": out.get("offline", False),
                          "fallback": out.get("fallback"),
                          "used_today": used + 1, "cap": settings.ASSISTANT_DAILY_CAP})
+
+
+@router.post("/api/assistant/confirm-case")
+def confirm_case(payload: dict, db: Session = Depends(get_db),
+                 user=Depends(get_current_user)):
+    """Confirm a pending case creation from the agent. Requires user approval."""
+    pending_id = (payload.get("pending_action_id") or "").strip()
+    if not pending_id:
+        return JSONResponse({"error": "pending_action_id required"}, status_code=400)
+    pending = _PENDING_ACTIONS.get(pending_id)
+    if not pending:
+        return JSONResponse({"error": "pending action not found or expired"}, status_code=404)
+    # Check TTL
+    created_at = pending.get("created_at", 0)
+    if time.time() - created_at > _PENDING_ACTION_TTL_SECONDS:
+        del _PENDING_ACTIONS[pending_id]
+        return JSONResponse({"error": "pending action expired"}, status_code=410)
+    # Verify the user matches the requester (or is admin)
+    if pending.get("requested_by") not in (user.username, "agent"):
+        if user.role not in ("admin", "senior"):
+            return JSONResponse({"error": "not authorized to confirm this action"},
+                                status_code=403)
+    # Create the case
+    from ..models import Case, CaseEvent
+    case = Case(engineer=user.username, customer_id=pending.get("customer_id"),
+                link_id=pending.get("link_id"), symptom=pending.get("symptom"),
+                status="open", severity=pending.get("severity", "major"),
+                link_state=pending.get("link_state", "down"),
+                opened_by="agent", opened_at=utcnow())
+    db.add(case); db.flush()
+    db.add(CaseEvent(case_id=case.id, at=utcnow(), engineer=user.username,
+                     kind="note",
+                     text=f"Agent-created case (confirmed by {user.username}): {pending.get('symptom')}"))
+    db.commit()
+    del _PENDING_ACTIONS[pending_id]
+    return JSONResponse({"case_id": case.id, "link": pending.get("link_name"),
+                         "customer": pending.get("customer"), "symptom": pending.get("symptom"),
+                         "summary": f"Case #{case.id} created and confirmed."})
 
 
 def _offline_answer(q: str, db: Session) -> str:

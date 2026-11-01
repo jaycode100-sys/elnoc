@@ -23,7 +23,7 @@ def _int(name: str, default: int) -> int:
 class Settings:
     DB_PATH: str = os.getenv("ELNOC_DB_PATH") or _res("data/elnoc.db")
     BACKUP_DIR: str = os.getenv("ELNOC_BACKUP_DIR") or _res("backups")
-    SECRET_KEY: str = os.getenv("ELNOC_SECRET_KEY", "dev-only-change-me-please-0123456789")
+    SECRET_KEY: str = os.getenv("ELNOC_SECRET_KEY", "")
     SESSION_HOURS: int = _int("ELNOC_SESSION_HOURS", 12)
     BASE_URL: str = os.getenv("ELNOC_BASE_URL", "http://localhost:8000")
     TZ_NAME: str = os.getenv("ELNOC_TZ", "Africa/Lagos")
@@ -73,7 +73,7 @@ class Settings:
     # Leave at 0 unless you genuinely want a ticket for every single ONU.
     SMARTOLT_ONU_ALERTS: str = os.getenv("SMARTOLT_ONU_ALERTS", "0")
     # Hard ceiling on events per collector run, so one bad poll cannot bury the NOC.
-    SMARTOLT_MAX_EVENTS: int = int(os.getenv("SMARTOLT_MAX_EVENTS", "200") or 200)
+    SMARTOLT_MAX_EVENTS: int = _int("SMARTOLT_MAX_EVENTS", 200)
 
     MAIL_IMAP_HOST: str = os.getenv("MAIL_IMAP_HOST", "")
     MAIL_IMAP_USER: str = os.getenv("MAIL_IMAP_USER", "")

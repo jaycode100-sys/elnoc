@@ -188,6 +188,7 @@ class Notification(Base):
     ack_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error: Mapped[str] = mapped_column(Text, default="")
     ack_token: Mapped[str] = mapped_column(String(100), default="", unique=True)
+    ack_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 class CaseWatcher(Base):
     __tablename__ = "case_watcher"

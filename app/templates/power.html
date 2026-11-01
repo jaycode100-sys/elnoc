@@ -230,9 +230,15 @@ document.getElementById("powerForm").addEventListener("submit", async (ev) => {
     wait.remove();
     const ans = document.createElement("div");
     ans.className = "power-bubble ai";
-    ans.innerHTML = "<div style='white-space:pre-wrap'><b>✓ Logged:</b> " + (d.summary || d.answer || "") + "</div>" +
-      "<div class='meta'><span class='source-tag'>" + (d.source || 'agent') + "</span> · " +
-      (d.event_time || '—') + " · " + (d.battery_level || '—') + " · by " + (d.created_by || '—') + "</div>";
+    const content = document.createElement("div");
+    content.style.whiteSpace = "pre-wrap";
+    content.innerHTML = "<b>✓ Logged:</b> " + (d.summary || d.answer || "");
+    ans.appendChild(content);
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.innerHTML = "<span class='source-tag'>" + (d.source || 'agent') + "</span> · " +
+      (d.event_time || '—') + " · " + (d.battery_level || '—') + " · by " + (d.created_by || '—');
+    ans.appendChild(meta);
     document.getElementById("msgs").appendChild(ans);
     document.getElementById("msgs").scrollTop = document.getElementById("msgs").scrollHeight;
     if (d.used_today) document.getElementById("powerStatus").textContent =
