@@ -234,3 +234,59 @@ def api_power_summary(date: str = "",
     return JSONResponse({"date": d, "count": len(reports), "summary": " ".join(summary_lines),
                          "events": events, "first_event": first.activity,
                          "last_event": last.activity, "interruption": interruption})
+
+
+# ---------------------------------------------------------------- API: power trends chart (P3-3)
+
+@router.get("/api/power/trends")
+def api_power_trends(days: int = 7, user=Depends(get_current_user),
+                     db: Session = Depends(get_db)):
+    """P3-3: Power trends for charting — daily event counts and battery levels
+    over the last N days (default 7). Returns data suitable for a line/bar chart."""
+    from sqlalchemy import func
+    end_date = lagos_date_iso()
+    # Build list of dates going back `days` days
+    from datetime import timedelta
+    dates = []
+    d0 = to_lagos(utcnow()).date()
+    for i in range(days - 1, -1, -1):
+        dt = d0 - timedelta(days=i)
+        dates.append(dt.isoformat())
+
+    reports = db.query(PowerReport).filter(
+        PowerReport.report_date.in_(dates)
+    ).order_by(PowerReport.report_date.asc(), PowerReport.created_at.asc()).all()
+
+    # Aggregate per date
+    per_date = {d: {"count": 0, "events": [], "battery_levels": []} for d in dates}
+    for r in reports:
+        rd = r.report_date
+        if rd in per_date:
+            per_date[rd]["count"] += 1
+            per_date[rd]["events"].append({
+                "time": r.event_time,
+                "activity": r.activity,
+                "battery": r.battery_level,
+                "source": r.source,
+            })
+            # Extract numeric battery %
+            import re as _re
+            m = _re.search(r"(\d{1,3})%", r.battery_level or "")
+            if m:
+                per_date[rd]["battery_levels"].append(int(m.group(1)))
+
+    series = []
+    for d in dates:
+        pd = per_date[d]
+        avg_batt = None
+        if pd["battery_levels"]:
+            avg_batt = round(sum(pd["battery_levels"]) / len(pd["battery_levels"]), 1)
+        series.append({
+            "date": d,
+            "display": lagos_date_display(d),
+            "event_count": pd["count"],
+            "avg_battery": avg_batt,
+            "events": pd["events"],
+        })
+
+    return JSONResponse({"days": days, "series": series})

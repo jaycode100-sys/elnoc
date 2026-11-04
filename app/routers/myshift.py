@@ -25,6 +25,7 @@ from ..services.shift import (
     parse_battery_level, parse_time, infer_activity,
     POWER_SOURCES,
 )
+from ..utils_time import utcnow, to_lagos, ensure_utc
 from ..schemas import (
     ShiftNoteCreate, ShiftNoteUpdate, ShiftNoteOut,
     ShiftCloseRequest, ShiftCloseOut,
@@ -360,3 +361,55 @@ def api_search_notes(q: str = "", user=Depends(get_current_user),
                                       "power_status": n.power_status, "shift_date": n.shift_date,
                                       "shift": n.shift, "created_at": n.created_at.isoformat(),
                                       "case_id": n.case_id} for n in notes]})
+
+
+# ---------------------------------------------------------------- API: shift nudge (P3-2)
+
+@router.get("/api/myshift/nudge")
+def api_myshift_nudge(user=Depends(get_current_user),
+                      db: Session = Depends(get_db)):
+    """P3-2: Nudge engineer 30 min before shift end if power report/log missing.
+    
+    Returns a nudge payload if the current shift is within 30 minutes of ending
+    and the power report and/or notes are missing.
+    """
+    from datetime import timedelta
+    now = utcnow()
+    d = lagos_date_iso()
+    shift = shift_label_from_roster(db, user.username, d)
+
+    # Compute shift end time
+    now_lagos = to_lagos(now)
+    if shift == "day":
+        shift_end = now_lagos.replace(hour=19, minute=0, second=0, microsecond=0)
+    else:
+        # Night shift ends at 07:00 next day
+        shift_end = now_lagos.replace(hour=19, minute=0, second=0, microsecond=0) + timedelta(days=1)
+
+    now_utc = ensure_utc(now)
+    shift_end_utc = ensure_utc(shift_end)
+    minutes_remaining = int((shift_end_utc - now_utc).total_seconds() / 60)
+
+    # Only nudge if within 30 minutes and shift not yet closed
+    if minutes_remaining > 30 or minutes_remaining <= 0:
+        return JSONResponse({"nudge": False, "minutes_remaining": minutes_remaining,
+                             "shift": shift, "date": d})
+
+    already_closed = _shift_closed(db, user.username, d, shift)
+    power_done = _power_exists(db, d)
+    note_count = db.query(ShiftNote).filter(
+        ShiftNote.engineer == user.username,
+        ShiftNote.shift_date == d,
+        ShiftNote.shift == shift).count()
+
+    reasons = []
+    if not power_done:
+        reasons.append("power report missing")
+    if note_count == 0:
+        reasons.append("no shift notes logged")
+
+    return JSONResponse({"nudge": bool(reasons) and not already_closed,
+                         "minutes_remaining": minutes_remaining,
+                         "shift": shift, "date": d,
+                         "reasons": reasons,
+                         "already_closed": already_closed})

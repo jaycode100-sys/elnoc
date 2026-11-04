@@ -54,6 +54,13 @@
       else { var q0 = document.getElementById('q'); if (q0) q0.focus(); }
       return;
     }
+    // Ctrl+Shift+M — MyShift pane (P3-5 desktop pane tab)
+    if (e.ctrlKey && e.shiftKey && (k === 'm' || e.code === 'KeyM')) {
+      e.preventDefault();
+      if (location.pathname !== '/myshift') location.href = '/myshift';
+      else { /* already on myshift — could focus the note input */ var n = document.getElementById('shiftNotes'); if (n) n.focus(); }
+      return;
+    }
     // Ctrl+K → palette search (also a fallback when Ctrl+Shift is captured)
     if ((e.ctrlKey && !e.altKey && k === 'k') || (k === '/' && !inField(document.activeElement))) {
       var q = document.getElementById('q');
