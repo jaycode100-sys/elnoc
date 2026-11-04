@@ -10,6 +10,8 @@ import re
 from datetime import date, datetime
 from typing import Optional
 
+from sqlalchemy.orm import Session
+
 from ..utils_time import utcnow, to_lagos
 
 POWER_SOURCES = ("light", "big generator", "small generator", "inverter", "solar", "power tank")
@@ -43,6 +45,18 @@ def shift_label(now: datetime | None = None) -> str:
     now = now or utcnow()
     lagos = to_lagos(now)
     return "day" if 7 <= lagos.hour < 19 else "night"
+
+
+def shift_label_from_roster(db: Session, engineer: str, date_iso: str) -> str:
+    """Shift label from the roster if an entry exists, else from the clock."""
+    from ..models import ShiftRoster
+    row = db.query(ShiftRoster).filter(
+        ShiftRoster.engineer == engineer,
+        ShiftRoster.shift_date == date_iso,
+    ).first()
+    if row:
+        return row.shift
+    return shift_label()
 
 
 def shift_label_from_date(date_iso: str) -> str:

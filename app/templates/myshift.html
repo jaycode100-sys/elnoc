@@ -156,6 +156,12 @@
           <label>Power status (optional here — full details in Power log)</label>
           <input id="powerStatus" placeholder="e.g. Inverter 71%, generator off, mains restored" {% if already_closed %}disabled{% endif %}>
         </div>
+        <div>
+          <label>Link to case (optional)</label>
+          <select id="caseId" {% if already_closed %}disabled{% endif %}>
+            <option value="">— no case —</option>
+          </select>
+        </div>
         <div class="chips">
           <button type="button" onclick="fillNote('Power restored at 6:00 PM. All links stable.')" {% if already_closed %}disabled{% endif %}>Power restored</button>
           <button type="button" onclick="fillNote('Generator running. Inverter on battery since 4:00 PM.')" {% if already_closed %}disabled{% endif %}>Gen on battery</button>
@@ -249,19 +255,37 @@ function goDate(){
 }
 document.getElementById('datePicker').addEventListener('change', goDate);
 
+// Load open cases for the case selector dropdown
+async function loadCases() {
+  try {
+    const r = await fetch("/api/cases");
+    const cases = await r.json();
+    const select = document.getElementById("caseId");
+    select.innerHTML = '<option value="">— no case —</option>';
+    for (const c of cases) {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = `#${c.id} ${c._link_name || c.device} — ${c.symptom || ""}`;
+      select.appendChild(opt);
+    }
+  } catch(e) { console.error("Failed to load cases:", e); }
+}
+loadCases();
+
 // Save shift note
 document.getElementById("noteForm").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const notes = document.getElementById("shiftNotes").value.trim();
   const extra = document.getElementById("extraInfo").value.trim();
   const power = document.getElementById("powerStatus").value.trim();
+  const caseId = document.getElementById("caseId").value;
   if(!notes && !extra && !power) return;
   const btn = document.getElementById("noteSend");
   btn.disabled = true;
   try {
     const r = await fetch("/api/myshift/note", {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({shift_date: CUR_DATE, shift: CUR_SHIFT, notes, extra_info: extra, power_status: power})
+      body: JSON.stringify({shift_date: CUR_DATE, shift: CUR_SHIFT, notes, extra_info: extra, power_status: power, case_id: caseId ? parseInt(caseId) : null})
     });
     const d = await r.json();
     if(d.error){ document.getElementById("noteStatus").textContent = "⚠ " + d.error; }
@@ -270,6 +294,7 @@ document.getElementById("noteForm").addEventListener("submit", async (ev) => {
       document.getElementById("shiftNotes").value = "";
       document.getElementById("extraInfo").value = "";
       document.getElementById("powerStatus").value = "";
+      document.getElementById("caseId").value = "";
       location.reload();
     }
   } catch(e){ document.getElementById("noteStatus").textContent = "⚠ " + e; }

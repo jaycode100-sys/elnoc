@@ -21,6 +21,7 @@ from ..models import AppUser, PowerReport, ShiftNote, ShiftClose, Case
 from ..security import get_current_user
 from ..services.shift import (
     lagos_date_iso, lagos_date_display, parse_lagos_date, shift_label,
+    shift_label_from_roster,
     parse_battery_level, parse_time, infer_activity,
     POWER_SOURCES,
 )
@@ -53,7 +54,7 @@ def myshift_page(request: Request, date: str = "",
                  user=Depends(get_current_user), db: Session = Depends(get_db)):
     # Accept either ISO (YYYY-MM-DD) or legacy DD/MM/YYYY; normalise to ISO
     d = parse_lagos_date(date or lagos_date_iso())
-    shift = shift_label()
+    shift = shift_label_from_roster(db, user.username, d)
     power_exists = _power_exists(db, d)
     already_closed = _shift_closed(db, user.username, d, shift)
     notes = db.query(ShiftNote).filter(
@@ -73,7 +74,7 @@ def myshift_page(request: Request, date: str = "",
 def api_save_note(payload: ShiftNoteCreate, user=Depends(get_current_user),
                   db: Session = Depends(get_db)):
     d = payload.shift_date
-    shift = payload.shift
+    shift = shift_label_from_roster(db, user.username, d)
     notes_text = (payload.notes or "").strip()
     extra_info = (payload.extra_info or "").strip()
     power_status = (payload.power_status or "").strip()
@@ -161,13 +162,30 @@ def api_list_notes(date: str = "", user=Depends(get_current_user),
                          for n in notes])
 
 
+# ---------------------------------------------------------------- API: notes linked to a case
+
+@router.get("/api/myshift/notes/case/{case_id}")
+def api_notes_for_case(case_id: int, user=Depends(get_current_user),
+                       db: Session = Depends(get_db)):
+    """Get shift notes linked to a case (for the case page sidebar)."""
+    notes = db.query(ShiftNote).filter(
+        ShiftNote.case_id == case_id,
+        ShiftNote.engineer == user.username).order_by(
+        ShiftNote.created_at.desc()).all()
+    return JSONResponse([{"id": n.id, "notes": n.notes, "extra_info": n.extra_info,
+                          "power_status": n.power_status, "source": n.source,
+                          "shift_date": n.shift_date, "shift": n.shift,
+                          "created_at": n.created_at.isoformat()}
+                         for n in notes])
+
+
 # ---------------------------------------------------------------- API: shift close gate (enforced)
 
 @router.get("/api/myshift/can-close")
 def api_can_close(date: str = "", user=Depends(get_current_user),
                   db: Session = Depends(get_db)):
     d = parse_lagos_date(date or lagos_date_iso())
-    shift = shift_label()
+    shift = shift_label_from_roster(db, user.username, d)
     power_done = _power_exists(db, d)
     already_closed = _shift_closed(db, user.username, d, shift)
     note_count = db.query(ShiftNote).filter(
@@ -196,7 +214,7 @@ def api_close_shift(payload: ShiftCloseRequest, user=Depends(get_current_user),
                     db: Session = Depends(get_db)):
     from ..security import audit
     d = lagos_date_iso()
-    shift = shift_label()
+    shift = shift_label_from_roster(db, user.username, d)
     # Reject if already closed
     if _shift_closed(db, user.username, d, shift):
         return JSONResponse({"error": "shift already closed"}, status_code=409)
@@ -289,7 +307,7 @@ def api_whatsapp_paste(payload: WhatsAppPasteRequest, user=Depends(get_current_u
     d = payload.shift_date
     if not raw:
         return JSONResponse({"error": "nothing to paste"}, status_code=400)
-    if _shift_closed(db, user.username, d, shift_label()):
+    if _shift_closed(db, user.username, d, shift_label_from_roster(db, user.username, d)):
         return JSONResponse({"error": "shift already closed — notes are read-only"},
                             status_code=403)
     # Use shared helpers from app/services/shift.py
@@ -298,7 +316,7 @@ def api_whatsapp_paste(payload: WhatsAppPasteRequest, user=Depends(get_current_u
     activity = infer_activity(raw)
     notes_text = f"[WhatsApp paste] {raw}"
     extra_info = f"time={event_time} battery={battery} source=whatsapp"
-    n = ShiftNote(engineer=user.username, shift_date=d, shift=shift_label(),
+    n = ShiftNote(engineer=user.username, shift_date=d, shift=shift_label_from_roster(db, user.username, d),
                   notes=notes_text, extra_info=extra_info,
                   power_status=battery or "", source="whatsapp", created_at=utcnow())
     db.add(n); db.flush(); db.refresh(n)

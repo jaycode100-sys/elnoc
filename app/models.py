@@ -459,6 +459,21 @@ class ShiftClose(Base):
     closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_default)
 
 
+class ShiftRoster(Base):
+    """Shift roster — assigns engineers to day/night shifts per date.
+
+    CSV-seedable for MVP. When a roster entry exists for a date, the shift
+    label comes from the roster rather than the clock.
+    """
+    __tablename__ = "shift_roster"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    engineer: Mapped[str] = mapped_column(String(200), default="", index=True)
+    shift_date: Mapped[str] = mapped_column(String(20), default="", index=True)  # YYYY-MM-DD
+    shift: Mapped[str] = mapped_column(String(20), default="day")     # day|night
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_default)
+
+    __table_args__ = (UniqueConstraint("engineer", "shift_date", "shift", name="uq_roster"),)
+
 
 # ---------------------------------------------------------------- Power reports
 # Day-duty power log: light, big generator, small generator, inverter, solar,

@@ -7,8 +7,8 @@ from __future__ import annotations
 from datetime import timedelta
 from sqlalchemy.orm import Session
 
-from .models import Customer, Contact, Link, EscalationRule, Case, CaseEvent
-from .utils_time import utcnow
+from .models import Customer, Contact, Link, EscalationRule, Case, CaseEvent, ShiftRoster, AppUser
+from .utils_time import utcnow, to_lagos
 
 
 def seed_all(db: Session) -> dict:
@@ -116,4 +116,13 @@ def seed_all(db: Session) -> dict:
                         "r": c.root_cause_detail or "",
                         "c": cust.name if cust else "", "l": link.name if link else ""})
         db.commit()
+    # Seed shift roster for existing users (day shift today)
+    today = to_lagos(utcnow()).strftime("%Y-%m-%d")
+    for user in db.query(AppUser).all():
+        if not db.query(ShiftRoster).filter(
+            ShiftRoster.engineer == user.username,
+            ShiftRoster.shift_date == today,
+        ).first():
+            db.add(ShiftRoster(engineer=user.username, shift_date=today, shift="day"))
+    db.commit()
     return out

@@ -1,6 +1,6 @@
 """Case lifecycle (FR-20..FR-25, FR-31/32): timeline, close-out, similar, evidence."""
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pathlib import Path
@@ -54,6 +54,21 @@ def case_list(request: Request, status: str = "", user=Depends(get_current_user)
         c._breach = is_mttr_breach(c)
         c._age = age_minutes(c.opened_at)
     return templates.TemplateResponse(request, "cases.html", { "user": user, "cases": cases, "status": status})
+
+
+@router.get("/api/cases")
+def api_list_cases(user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """JSON list of cases for use in dropdowns and cross-references."""
+    q = db.query(Case).order_by(Case.opened_at.desc()).limit(100)
+    cases = q.all()
+    for c in cases:
+        cn, ln = _names(db, c)
+        c._customer_name, c._link_name = cn, ln
+    return JSONResponse([{"id": c.id, "link_name": c._link_name or c.device,
+                          "device": c.device, "symptom": c.symptom,
+                          "status": c.status, "severity": c.severity,
+                          "link_state": c.link_state}
+                         for c in cases])
 
 @router.get("/cases/{case_id}", response_class=HTMLResponse)
 def case_page(request: Request, case_id: int, user=Depends(get_current_user),

@@ -59,7 +59,7 @@
 <div class="formrow">
 <div><label>Workflow status</label><select name="status"><option {% if case.status=='open' %}selected{% endif %}>open</option><option {% if case.status=='escalated' %}selected{% endif %}>escalated</option><option {% if case.status=='waiting_other_team' %}selected{% endif %}>waiting_other_team</option><option>resolved</option></select></div>
 <div><label>Link state (drives handover)</label><select name="link_state"><option value="">— keep —</option><option>down</option><option>degraded</option><option>unstable</option><option>up</option></select></div>
-<div><label>Escalation level</label><select name="escalation_level"><option value="">— unset —</option>{% for lv, meaning in levels.items() %}<option value="{{ lv }}" {% if case.escalation_level==lv %}selected{% endif %} title="{{ meaning }}">{{ lv }}</option>{% endfor %}</select></div></div><br>
+<div><label>Escalation level</label><select name="escalation_level"><option value="">— unset —</option>{% for lv in ["L1","L2","L3","Vendor"] %}<option value="{{ lv }}" {% if case.escalation_level==lv %}selected{% endif %} title="{{ meaning }}">{{ lv }}</option>{% endfor %}</select></div></div><br>
 <div class="formrow"><div><label>Waiting on (team / person — shows after “FOLLOWING UP WITH”)</label><input name="waiting_on" placeholder="OREGUN TEAM" value="{{ case.waiting_on }}"></div>
 <div><label>Phoenix ticket no. — app-only, never in handover</label><input name="phoenix_ticket_no" value="{{ case.phoenix_ticket_no }}" placeholder="e.g. PHX-4821"></div></div>
 <br><button type="submit">Update case</button>
@@ -89,6 +89,13 @@
 <p class="muted" style="margin-top:0">One optional watcher per case (FR-27) — logged with who added them. Affected: <b>{{ affected|join(', ') or '—' }}</b></p>
 <form method="post" action="/cases/{{ case.id }}/watcher" style="display:flex; gap:8px"><input name="contact_id" placeholder="Contact ID" style="flex:1"><button class="btn sm violet" type="submit">Add watcher</button></form></div>
 
+<div class="card"><h2>📓 Shift notes mentioning this case</h2>
+<p class="muted" style="margin-top:0">Shift notes that reference this case, from engineers' MyShift logs.</p>
+<div id="caseShiftNotes" style="display:flex; gap:8px; flex-direction:column">
+  <div class="muted" style="font-size:12.5px">Loading shift notes…</div>
+</div>
+</div>
+
 <div class="card"><h2>▣ Evidence thread</h2>
 <p class="muted" style="margin-top:0">Optional but advised. Every update can carry proof: physical location, fibre trace, interface status, SmartOLT device, PRTG sensor. Uploads stay in order as the story of the fault.</p>
 {% if resolution_challenge %}<div class="card" style="border-color:var(--warn); background:linear-gradient(90deg, rgba(255,176,32,.12), transparent)">
@@ -109,4 +116,29 @@
 <form method="post" action="/cases/{{ case.id }}/challenge-resolution" style="margin-top:8px"><button class="btn sm ghost" type="submit">◉ Challenge again for proof</button></form></div>
 </div>
 </div>
+
+<script>
+async function loadCaseShiftNotes() {
+  try {
+    const r = await fetch(`/api/myshift/notes/case/{{ case.id }}`);
+    const notes = await r.json();
+    const container = document.getElementById("caseShiftNotes");
+    if (notes.length === 0) {
+      container.innerHTML = '<div class="muted" style="font-size:12.5px">No shift notes mention this case yet.</div>';
+      return;
+    }
+    container.innerHTML = notes.map(n => `
+      <div class="tl-item k-note">
+        <div class="tl-meta">${n.created_at} · ${n.shift} · ${n.engineer}</div>
+        <div>${n.notes}</div>
+        ${n.extra_info ? `<div class="extra">Extra: ${n.extra_info}</div>` : ''}
+        ${n.power_status ? `<div class="extra">Power: ${n.power_status}</div>` : ''}
+      </div>
+    `).join("");
+  } catch(e) {
+    document.getElementById("caseShiftNotes").innerHTML = '<div class="muted" style="font-size:12.5px">Unable to load shift notes.</div>';
+  }
+}
+loadCaseShiftNotes();
+</script>
 {% endblock %}

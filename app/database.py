@@ -122,6 +122,16 @@ def ensure_columns() -> None:
             closed_at TIMESTAMP
         )
         """)
+        # Create shift_roster table if not exists
+        conn.exec_driver_sql("""
+        CREATE TABLE IF NOT EXISTS shift_roster (
+            id INTEGER PRIMARY KEY,
+            engineer VARCHAR(200) DEFAULT '',
+            shift_date VARCHAR(20) DEFAULT '',
+            shift VARCHAR(20) DEFAULT 'day',
+            created_at TIMESTAMP
+        )
+        """)
 
 def get_db():
     db = SessionLocal()
