@@ -33,6 +33,35 @@
   <div class="tier"><div class="glyph">○</div><div><b>Edge / PON</b><span>SmartOLT + PRTG correlated</span></div></div>
 </div>
 
+<div class="card">
+  <div class="formrow" style="gap:20px; align-items:center">
+    <div style="flex:1">
+      <h2 style="margin:0 0 8px">📓 {{ shift }} shift — {{ today }}</h2>
+      <div class="stats" style="display:flex; gap:16px">
+        <div class="stat" style="flex:1">
+          <div class="v">{{ shift_note_count }}</div>
+          <div class="k">notes logged</div>
+        </div>
+        <div class="stat {% if power_done %}good{% else %}bad{% endif %}" style="flex:1">
+          <div class="v">{% if power_done %}✓{% else %}⚠{% endif %}</div>
+          <div class="k">power report</div>
+        </div>
+        <div class="stat {% if shift_closed %}ok{% else %}warn{% endif %}" style="flex:1">
+          <div class="v">{% if shift_closed %}✓{% else %}⚪{% endif %}</div>
+          <div class="k">shift closed</div>
+        </div>
+      </div>
+    </div>
+    <div style="text-align:right">
+      {% if not shift_closed %}
+      <a href="/myshift" class="btn viole">Go to MyShift</a>
+      {% else %}
+      <span class="pill ok">Shift closed</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
 <div class="grid2">
 <div class="panel"><h2>◉ Waiting on others</h2><p class="muted" style="margin-top:0">Grouped instinct: chase one party, clear many links. <a href="/handover">Group view →</a></p>
 <table><tr><th>Case</th><th>Link</th><th>Waiting on</th><th>Age</th><th>State</th></tr>

@@ -6,11 +6,12 @@ from sqlalchemy.orm import Session
 from pathlib import Path
 from datetime import timedelta
 from ..database import get_db
-from ..models import Case, Customer, Link, Notification
+from ..models import Case, Customer, Link, Notification, ShiftNote, ShiftClose, PowerReport
 from ..security import get_current_user
 from ..services.escalation import is_stale_wait, is_mttr_breach
 from ..services.update_watch import watch_updates, flag_text
 from ..utils_time import utcnow, age_minutes, to_lagos, ensure_utc
+from ..services.shift import lagos_date_iso, shift_label_from_roster
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -54,8 +55,22 @@ def dashboard(request: Request, user=Depends(get_current_user), db: Session = De
     tally = {s: 0 for s in STATES}
     for c in cases:
         tally[_state(c)] += 1
+    # Shift digest for current user
+    today = lagos_date_iso()
+    shift = shift_label_from_roster(db, user.username, today)
+    shift_note_count = db.query(ShiftNote).filter(
+        ShiftNote.engineer == user.username,
+        ShiftNote.shift_date == today,
+        ShiftNote.shift == shift).count()
+    shift_closed = db.query(ShiftClose).filter(
+        ShiftClose.engineer == user.username,
+        ShiftClose.shift_date == today,
+        ShiftClose.shift == shift).first() is not None
+    power_done = db.query(PowerReport).filter(PowerReport.report_date == today).first() is not None
     return templates.TemplateResponse(request, "dashboard.html", { "user": user, "open_cases": open_cases, "waiting": waiting,
-         "shift_cases": shift_cases, "failed": failed, "total": len(cases), "tally": tally})
+         "shift_cases": shift_cases, "failed": failed, "total": len(cases), "tally": tally,
+         "shift_note_count": shift_note_count, "shift_closed": shift_closed,
+         "power_done": power_done, "shift": shift, "today": today})
 
 @router.get("/api/deck-stats")
 def deck_stats(db: Session = Depends(get_db), user=Depends(get_current_user)):
