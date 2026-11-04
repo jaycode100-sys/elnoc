@@ -13,7 +13,7 @@ app = FastAPI(title="ELNOC", version="0.1.0")
 BASE = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 
-from .routers import auth, quicklog, cases, dashboard, handover, admin, ingest, acknowledge, playbooks, ask, evidence, links, assistant, desktop_auth, power, myshift, customers_api, clear_data  # noqa: E402
+from .routers import auth, quicklog, cases, dashboard, handover, admin, ingest, acknowledge, playbooks, ask, evidence, links, assistant, desktop_auth, power, myshift, customers_api, clear_data, reports  # noqa: E402
 from .security import LoginRequired, get_current_user_optional  # noqa: E402
 from .database import get_db  # noqa: E402
 
@@ -35,6 +35,7 @@ app.include_router(power.router)
 app.include_router(myshift.router)
 app.include_router(customers_api.router)
 app.include_router(clear_data.router)
+app.include_router(reports.router)
 
 
 @asynccontextmanager
