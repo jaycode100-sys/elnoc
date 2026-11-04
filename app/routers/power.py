@@ -26,51 +26,37 @@ from ..security import get_current_user
 from ..config import settings
 from ..routers.assistant import llm as assistant_llm
 from ..utils_time import utcnow, to_lagos, ensure_utc
+from ..services.shift import (
+    lagos_date_iso as _lagos_date_iso,
+    lagos_date_display as _lagos_date_display,
+    parse_lagos_date,
+    shift_label as _shift_label,
+    parse_battery_level,
+    parse_time,
+    infer_activity,
+)
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
-POWER_SOURCES = ("light", "big generator", "small generator", "inverter", "solar", "power tank")
-
 
 def _lagos_date() -> str:
-    return to_lagos(utcnow()).strftime("%d/%m/%Y")
+    return _lagos_date_iso()
 
 
-def _parse_battery_level(text: str) -> str:
+def parse_battery_level(text: str) -> str:
     """Return the battery level portion of a raw line, best effort."""
-    m = re.search(r"(?:battery|level|inverter|solar|tank)[^0-9]*([0-9]+%(?:[^0-9]*[0-9]+%)*)", text, re.I)
-    if m:
-        return m.group(1).strip()
-    m = re.search(r"([0-9]{1,3}%)", text)
-    return m.group(1) if m else ""
+    return shift.parse_battery_level(text)
 
 
-def _parse_time(text: str) -> str:
+def parse_time(text: str) -> str:
     """Extract HH:MM AM/PM from a raw text line."""
-    m = re.search(r"(\d{1,2}:\d{2}\s*(?:AM|PM))", text, re.I)
-    return m.group(1).upper() if m else ""
+    return shift.parse_time(text)
 
 
-def _infer_activity(text: str) -> str:
-    t = text.lower()
-    for src in POWER_SOURCES:
-        if src in t:
-            for verb in ("switched on", "switched off", "came on", "went off", "restored", "failed", "tripped"):
-                if verb in t:
-                    return f"{src.title()} {verb.title()}"
-            return f"{src.title()} event"
-    if "generator" in t:
-        return "Generator event"
-    if "inverter" in t:
-        return "Inverter event"
-    if "solar" in t:
-        return "Solar event"
-    if "tank" in t or "battery" in t:
-        return "Power tank / battery event"
-    if "light" in t or "power" in t or "electric" in t or "supply" in t:
-        return "Mains power event"
-    return "Power event"
+def infer_activity(text: str) -> str:
+    """Infer a short activity phrase from free text."""
+    return shift.infer_activity(text)
 
 
 # ---------------------------------------------------------------- page
@@ -180,14 +166,14 @@ def api_power_agent(payload: dict, user=Depends(get_current_user),
     decision = _power_agent_decision([{"role": "user", "content": raw_text}])
     # Offline fallback: no provider configured — parse with regex only
     if not st["ready"]:
-        activity = _infer_activity(raw_text)
-        event_time = _parse_time(raw_text)
-        battery_level = _parse_battery_level(raw_text)
+        activity = infer_activity(raw_text)
+        event_time = parse_time(raw_text)
+        battery_level = parse_battery_level(raw_text)
         summary = f"{activity} at {event_time or 'time not stated'} — {battery_level or 'level not stated'}"
     else:
-        activity = decision.get("activity") or _infer_activity(raw_text)
-        event_time = decision.get("event_time") or _parse_time(raw_text)
-        battery_level = decision.get("battery_level") or _parse_battery_level(raw_text)
+        activity = decision.get("activity") or infer_activity(raw_text)
+        event_time = decision.get("event_time") or parse_time(raw_text)
+        battery_level = decision.get("battery_level") or parse_battery_level(raw_text)
         summary = decision.get("summary") or f"{activity} at {event_time or 'time not stated'}"
 
     r = PowerReport(report_date=report_date, activity=activity, event_time=event_time,

@@ -116,6 +116,9 @@
   <button class="close-btn closed" disabled>✓ Shift closed</button>
   {% elif power_done and notes|length > 0 %}
   <button id="closeBtn" class="close-btn ok">✓ Close shift</button>
+  <button id="copyHandoverBtn" class="close-btn ok" style="background:rgba(124,92,255,.15);border-color:rgba(124,92,255,.4);color:#b18cff">
+    📋 Copy for handover
+  </button>
   {% elif power_done and notes|length == 0 %}
   <button id="closeBtn" class="close-btn block" disabled>
     ⚠ Add a note first (or check "nothing to report")
@@ -350,6 +353,28 @@ document.getElementById("closeBtn").addEventListener("click", async () => {
     const d = await r.json();
     if(d.error) { alert("⚠ " + d.error); }
     else { location.reload(); }
+  } catch(e) { alert("⚠ " + e); }
+});
+
+// Copy shift summary for handover
+document.getElementById("copyHandoverBtn").addEventListener("click", async () => {
+  try {
+    const r = await fetch(`/api/myshift/summary?date=${encodeURIComponent(CUR_DATE)}`);
+    const d = await r.json();
+    let text = `ELNOC Shift Summary — ${d.date_display}\n`;
+    text += `Engineer: ${CUR_SHIFT} shift\n`;
+    text += `─────────────────────────────\n`;
+    for (const e of d.engineers) {
+      text += `\n${e.engineer_name} (${e.engineer}) — ${e.shift}\n`;
+      text += `  Notes: ${e.note_count}\n`;
+      text += `  Power: ${e.power_done ? '✓ logged' : '⚠ missing'}\`;
+      text += `  Closed: ${e.closed ? 'yes' : 'no'}\n`;
+      for (const note of e.notes) {
+        text += `  - ${note}\n`;
+      }
+    }
+    await navigator.clipboard.writeText(text);
+    alert("Shift summary copied to clipboard. Paste into your handover document.");
   } catch(e) { alert("⚠ " + e); }
 });
 </script>

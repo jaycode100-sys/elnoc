@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import timedelta
 from ..models import level_label
+from ..services.shift import lagos_date_display
 from ..utils_time import fmt_date, age_minutes, utcnow, ensure_utc, to_lagos
 
 DIVIDER = "-------------------------------------------------"
@@ -239,3 +240,56 @@ def group_by_waiting_party(cases: list) -> dict[str, list]:
         if c.status == "waiting_other_team" or c.waiting_on:
             groups[(c.waiting_on or "UNASSIGNED").upper()].append(c)
     return dict(groups)
+
+
+def append_shift_summary(db: Session, engineer: str, date_iso: str, shift: str,
+                         notes: list, power_report_id: int | None = None) -> str:
+    """Append a shift summary section to the handover document when a shift closes.
+
+    Returns the appended summary text. Callers should append this to the
+    handover document and persist it.
+    """
+    from ..models import ShiftNote, PowerReport
+
+    # Gather this engineer's notes for the shift
+    shift_notes = db.query(ShiftNote).filter(
+        ShiftNote.engineer == engineer,
+        ShiftNote.shift_date == date_iso,
+        ShiftNote.shift == shift).order_by(
+        ShiftNote.created_at.asc()).all()
+
+    # Gather power reports for the date
+    power_reports = db.query(PowerReport).filter(
+        PowerReport.report_date == date_iso).order_by(
+        PowerReport.created_at.asc()).all()
+
+    lines = []
+    lines.append("")
+    lines.append(DIVIDER)
+    lines.append("SHIFT SUMMARY — " + lagos_date_display(date_iso) + " " + shift.upper())
+    lines.append("")
+    lines.append(f"ENGINEER: {engineer}")
+    lines.append("")
+    if shift_notes:
+        lines.append("NOTES:")
+        for n in shift_notes:
+            when = n.created_at.strftime("%H:%M") if n.created_at else ""
+            lines.append(f"- [{when}] {n.notes}")
+            if n.extra_info:
+                lines.append(f"  Extra: {n.extra_info}")
+            if n.power_status:
+                lines.append(f"  Power: {n.power_status}")
+        lines.append("")
+    else:
+        lines.append("NOTES: (nothing to report)")
+        lines.append("")
+    if power_reports:
+        lines.append("POWER EVENTS:")
+        for pr in power_reports:
+            when = pr.event_time or "time not stated"
+            batt = pr.battery_level or "level not stated"
+            lines.append(f"- [{when}] {pr.activity} — {batt}")
+        lines.append("")
+    lines.append("END OF SHIFT SUMMARY")
+    lines.append("")
+    return "\n".join(lines)
