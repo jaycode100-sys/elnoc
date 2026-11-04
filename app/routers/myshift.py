@@ -340,3 +340,23 @@ def api_whatsapp_paste(payload: WhatsAppPasteRequest, user=Depends(get_current_u
                          "power_report_id": power_report_id,
                          "notes": notes_text, "created_by": user.username,
                          "created_at": n.created_at.isoformat()})
+
+
+# ---------------------------------------------------------------- API: search shift notes
+
+@router.get("/api/myshift/search")
+def api_search_notes(q: str = "", user=Depends(get_current_user),
+                     db: Session = Depends(get_db)):
+    """Search shift notes by keyword (full-text, ILIKE)."""
+    q = (q or "").strip()
+    if not q:
+        return JSONResponse({"results": []})
+    q_lower = q.lower()
+    notes = db.query(ShiftNote).filter(
+        ShiftNote.engineer == user.username,
+        ShiftNote.notes.ilike(f"%{q}%")
+    ).order_by(ShiftNote.created_at.desc()).limit(50).all()
+    return JSONResponse({"results": [{"id": n.id, "notes": n.notes, "extra_info": n.extra_info,
+                                      "power_status": n.power_status, "shift_date": n.shift_date,
+                                      "shift": n.shift, "created_at": n.created_at.isoformat(),
+                                      "case_id": n.case_id} for n in notes]})
