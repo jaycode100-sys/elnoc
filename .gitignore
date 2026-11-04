@@ -26,3 +26,8 @@ build/
 dist/
 server.err
 server.out
+
+# Review documents (downloaded externally, not part of repo)
+myshift-user-guide.md
+myshift-review-improvements-&-mvp-roadmap*
+ELNOC Review*
