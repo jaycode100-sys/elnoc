@@ -26,7 +26,9 @@
   <a class="nav-item" href="/myshift"><span class="nav-ico">📓</span>MyShift</a>
   <a class="nav-item" href="/report/weekly"><span class="nav-ico">◐</span>Weekly report</a>
   <div class="nav-label">System</div>
+  {% if user.role in ("admin", "senior", "manager") %}
   <a class="nav-item" href="/admin"><span class="nav-ico">⚙</span>Registry &amp; admin</a>
+  {% endif %}
   <a class="nav-item" href="/collector-status"><span class="nav-ico">〜</span>Collectors</a>
   <div class="rail-foot">
     {% if user %}

@@ -67,6 +67,24 @@ async def _login_gate(request, exc: LoginRequired):
                             status_code=303)
 
 
+@app.exception_handler(403)
+async def _forbidden(request, exc):
+    from fastapi.responses import HTMLResponse
+    from fastapi.templating import Jinja2Templates
+    from pathlib import Path
+    templates = Jinja2Templates(directory=str(BASE / "templates"))
+    return HTMLResponse(
+        "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Forbidden</title>"
+        "<link rel='stylesheet' href='/static/style.css'></head>"
+        "<body><div class='login-wrap'><div class='login-card' style='text-align:center'>"
+        "<h2>⚠ Access Forbidden</h2>"
+        "<p class='muted'>You don't have permission to view this page.</p>"
+        "<p class='muted'>This area is restricted to administrators.</p>"
+        "<a href='/dashboard' class='btn'>Return to Dashboard</a>"
+        "</div></div></body></html>",
+        status_code=403)
+
+
 @app.get("/", response_class=None)
 def landing(request: Request):
     """Public landing — the default page. Never requires auth, never redirects
