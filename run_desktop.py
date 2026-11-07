@@ -1,4 +1,4 @@
-"""ELNOC Desktop Launcher
+r"""ELNOC Desktop Launcher
 Starts FastAPI with uvicorn in a background thread, opens in PyWebView.
 No terminal window required.
 
@@ -11,7 +11,23 @@ When bundled with PyInstaller (--onefile), the app is unpacked into a
 read-only temp folder (_MEIPASS). SQLite cannot write there, so on first
 launch we seed a writable copy of data/elnoc.db into %LOCALAPPDATA%\ELNOC
 and point ELNOC_DB_PATH at it. Templates/static still resolve from the bundle.
+
+Window behavior:
+  - Closing the window (X button) does NOT exit the app. The server keeps
+    running and a new window opens immediately.
+  - To fully exit, use Ctrl+Alt+X (AutoHotkey) or End Task in Task Manager.
+  - AutoHotkey (resources/elnoc.ahk) provides global hotkeys:
+      Ctrl+Alt+E  -> ELNOC command palette
+      Ctrl+Alt+Q  -> Quick Log
+      Ctrl+Alt+M  -> MyShift
+      Ctrl+Alt+P  -> Power log
+      Ctrl+Alt+A  -> AI Assistant
+      Ctrl+Alt+D  -> Dashboard
+      Ctrl+Alt+H  -> Handover
+      Ctrl+Alt+L  -> Quick Log
+      Ctrl+Alt+X  -> EXIT ELNOC completely
 """
+
 import os
 import sys
 import shutil
@@ -81,7 +97,6 @@ def start_cloudflared(local_port):
     """Start a Cloudflare quick tunnel and return (process, public_url or None)."""
     exe = resource_path('tools/cloudflared.exe')
     if not os.path.exists(exe):
-        # fall back to cloudflared on PATH
         exe = 'cloudflared'
     try:
         proc = subprocess.Popen(
@@ -90,7 +105,6 @@ def start_cloudflared(local_port):
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
     except (FileNotFoundError, OSError):
         return None, None
-    # read the first few lines to grab the public URL
     import time
     url = None
     deadline = time.time() + 10
@@ -121,29 +135,35 @@ def main():
     if public:
         tunnel_proc, public_url = start_cloudflared(port)
 
-    url = f'http://127.0.0.1:{port}/auth/desktop/splash'
-    webview.create_window('ELNOC', url, width=1500, height=950, min_size=(1100, 800), resizable=True)
-    # Window/taskbar icon; older pywebview builds ignore the param, so degrade quietly.
-    icon_path = resource_path('ELNOC.ico')
-    try:
-        if os.path.exists(icon_path):
-            webview.start(icon=icon_path)
-        else:
+    # Window loop: when the user closes the ELNOC window, a new one opens
+    # immediately. The server keeps running in the background thread.
+    # To fully exit, use Ctrl+Alt+X (AutoHotkey) or End Task in Task Manager.
+    while True:
+        url = f'http://127.0.0.1:{port}/auth/desktop/splash'
+        webview.create_window('ELNOC', url, width=1500, height=950,
+                              min_size=(1100, 800), resizable=True)
+        icon_path = resource_path('ELNOC.ico')
+        try:
+            if os.path.exists(icon_path):
+                webview.start(icon=icon_path)
+            else:
+                webview.start()
+        except (TypeError, NotImplementedError):
             webview.start()
-    except (TypeError, NotImplementedError):
-        webview.start()
-    except Exception as exc:  # WebView2 Runtime missing on this machine, etc.
-        ctypes.windll.user32.MessageBoxW(
-            0,
-            "ELNOC requires the Microsoft Edge WebView2 Runtime to open its window.\n\n"
-            "Download and install it from:\nhttps://aka.ms/WebView2Setup\n\n"
-            "Then re-run ELNOC.",
-            "ELNOC – prerequisite missing",
-            0x30,  # MB_ICONWARNING
-        )
-        sys.exit(1)
+        except Exception as exc:
+            ctypes.windll.user32.MessageBoxW(
+                0,
+                "ELNOC requires the Microsoft Edge WebView2 Runtime to open its window.\n\n"
+                "Download and install it from:\nhttps://aka.ms/WebView2Setup\n\n"
+                "Then re-run ELNOC.",
+                "ELNOC – prerequisite missing",
+                0x30,  # MB_ICONWARNING
+            )
+            sys.exit(1)
+        # Window was closed - loop back to create a new one.
+        # Server thread keeps running in the background.
 
-    # cleanup tunnel on exit
+    # cleanup tunnel on exit (unreachable in normal loop)
     if tunnel_proc:
         tunnel_proc.terminate()
 
